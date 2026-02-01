@@ -18,7 +18,7 @@ export interface ReinforcementLayer {
   count: number;
 }
 
-// Beam input properties
+// Single beam input properties
 export interface BeamInputs {
   // Material properties
   concreteGrade: ConcreteGrade;
@@ -35,12 +35,45 @@ export interface BeamInputs {
   stirrupSpacing: number;
 }
 
+// Double beam input properties
+export interface DoubleBeamInputs {
+  // Material properties
+  concreteGrade: ConcreteGrade;
+  steelGrade: SteelGrade;
+
+  // Section dimensions (cm)
+  width: number;
+  height: number;
+  cover: number;
+  coverTop: number; // Cover for compression steel
+
+  // Tension reinforcement (bottom)
+  tensionLayers: ReinforcementLayer[];
+
+  // Compression reinforcement (top)
+  compressionLayers: ReinforcementLayer[];
+
+  // Stirrups
+  stirrupSize: RoundBar;
+  stirrupSpacing: number;
+}
+
 // Calculated section properties
 export interface SectionProperties {
   effectiveDepth: number;      // d (cm)
   totalSteelArea: number;      // As (cm²)
   steelRatio: number;          // ρ (rho)
   centroidDepth: number;       // depth to centroid of steel (cm)
+}
+
+// Double beam section properties
+export interface DoubleSectionProperties {
+  effectiveDepth: number;           // d (cm)
+  effectiveDepthPrime: number;      // d' (cm) - depth to compression steel
+  tensionSteelArea: number;         // As (cm²)
+  compressionSteelArea: number;     // As' (cm²)
+  tensionSteelRatio: number;        // ρ
+  compressionSteelRatio: number;    // ρ'
 }
 
 // WSD calculation results
@@ -52,6 +85,11 @@ export interface WSDResults {
   leverArm: number;                 // jd (cm)
   momentCapacity: number;           // M (kg-m)
   shearCapacity: number;            // V (kg)
+}
+
+// Double beam WSD results
+export interface DoubleWSDResults extends WSDResults {
+  compressionSteelStress: number;   // f's (kg/cm²)
 }
 
 // SDM calculation results
@@ -67,11 +105,25 @@ export interface SDMResults {
   isUnderReinforced: boolean;
 }
 
+// Double beam SDM results
+export interface DoubleSDMResults extends SDMResults {
+  compressionSteelYields: boolean;  // Does compression steel yield?
+  compressionSteelStress: number;   // f's actual stress
+  momentFromCompSteel: number;      // Mn2 from compression steel contribution
+}
+
 // Combined results
 export interface CalculationResults {
   section: SectionProperties;
   wsd: WSDResults;
   sdm: SDMResults;
+}
+
+// Double beam combined results
+export interface DoubleCalculationResults {
+  section: DoubleSectionProperties;
+  wsd: DoubleWSDResults;
+  sdm: DoubleSDMResults;
 }
 
 // Bar data lookup

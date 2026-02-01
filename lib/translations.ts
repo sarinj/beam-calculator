@@ -6,6 +6,24 @@ export const translations = {
     appTitle: 'RC Beam Analysis',
     appSubtitle: 'Shear and Moment Strength by WSD & SDM',
 
+    // Homepage
+    selectBeamType: 'Select Beam Type',
+    selectBeamTypeDesc: 'Choose the type of reinforced concrete beam to analyze',
+    singleBeam: 'Singly Reinforced Beam',
+    singleBeamDesc: 'Beam with tension reinforcement only at the bottom',
+    doubleBeam: 'Doubly Reinforced Beam',
+    doubleBeamDesc: 'Beam with both tension and compression reinforcement',
+    calculate: 'Calculate',
+    backToHome: '← Back to Home',
+
+    // Features
+    featureAccurate: 'Accurate Calculations',
+    featureAccurateDesc: 'Based on WSD & SDM standards',
+    featureRealtime: 'Real-time Results',
+    featureRealtimeDesc: 'Instant calculation as you type',
+    featureBilingual: 'Bilingual Support',
+    featureBilingualDesc: 'Available in English and Thai',
+
     // Material properties
     materialProperties: 'Material Properties',
     concreteStrength: 'Concrete Strength',
@@ -19,7 +37,11 @@ export const translations = {
 
     // Reinforcement
     reinforcement: 'Reinforcement',
+    tensionReinforcement: 'Tension Reinforcement (Bottom)',
+    compressionReinforcement: 'Compression Reinforcement (Top)',
     mainBars: 'Main Bars',
+    topBars: 'Top Bars',
+    bottomBars: 'Bottom Bars',
     layer: 'Layer',
     barSize: 'Bar Size',
     quantity: 'Quantity',
@@ -33,6 +55,8 @@ export const translations = {
     results: 'Results',
     effectiveDepth: 'Effective Depth',
     steelArea: 'Steel Area',
+    tensionSteelArea: 'Tension Steel Area',
+    compressionSteelArea: 'Compression Steel Area',
     steelRatio: 'Steel Ratio',
     momentCapacity: 'Moment Capacity',
     shearCapacity: 'Shear Capacity',
@@ -60,6 +84,12 @@ export const translations = {
     underReinforced: 'Under-reinforced (OK)',
     overReinforced: 'Over-reinforced (NG)',
 
+    // Double beam specific
+    compressionSteelYields: 'Compression Steel Yields',
+    compressionSteelNotYields: 'Compression Steel Not Yields',
+    dPrime: 'd\'',
+    asPrime: 'As\'',
+
     // Units
     cm: 'cm',
     cm2: 'cm²',
@@ -75,6 +105,24 @@ export const translations = {
     appTitle: 'วิเคราะห์คานคอนกรีตเสริมเหล็ก',
     appSubtitle: 'กำลังรับแรงเฉือนและโมเมนต์ โดยวิธี WSD & SDM',
 
+    // Homepage
+    selectBeamType: 'เลือกประเภทคาน',
+    selectBeamTypeDesc: 'เลือกประเภทคานคอนกรีตเสริมเหล็กที่ต้องการวิเคราะห์',
+    singleBeam: 'คานเสริมเหล็กชั้นเดียว',
+    singleBeamDesc: 'คานที่มีเหล็กรับแรงดึงด้านล่างเท่านั้น',
+    doubleBeam: 'คานเสริมเหล็กสองชั้น',
+    doubleBeamDesc: 'คานที่มีทั้งเหล็กรับแรงดึงและเหล็กรับแรงอัด',
+    calculate: 'คำนวณ',
+    backToHome: '← กลับหน้าหลัก',
+
+    // Features
+    featureAccurate: 'คำนวณแม่นยำ',
+    featureAccurateDesc: 'ตามมาตรฐาน WSD & SDM',
+    featureRealtime: 'ผลลัพธ์ทันที',
+    featureRealtimeDesc: 'คำนวณอัตโนมัติขณะพิมพ์',
+    featureBilingual: 'รองรับ 2 ภาษา',
+    featureBilingualDesc: 'ภาษาไทยและอังกฤษ',
+
     // Material properties
     materialProperties: 'คุณสมบัติวัสดุ',
     concreteStrength: 'กำลังคอนกรีต',
@@ -88,7 +136,11 @@ export const translations = {
 
     // Reinforcement
     reinforcement: 'เหล็กเสริม',
+    tensionReinforcement: 'เหล็กรับแรงดึง (ล่าง)',
+    compressionReinforcement: 'เหล็กรับแรงอัด (บน)',
     mainBars: 'เหล็กเสริมหลัก',
+    topBars: 'เหล็กบน',
+    bottomBars: 'เหล็กล่าง',
     layer: 'ชั้นที่',
     barSize: 'ขนาดเหล็ก',
     quantity: 'จำนวน',
@@ -102,6 +154,8 @@ export const translations = {
     results: 'ผลการคำนวณ',
     effectiveDepth: 'ความลึกประสิทธิผล',
     steelArea: 'พื้นที่เหล็ก',
+    tensionSteelArea: 'พื้นที่เหล็กรับแรงดึง',
+    compressionSteelArea: 'พื้นที่เหล็กรับแรงอัด',
     steelRatio: 'อัตราส่วนเหล็ก',
     momentCapacity: 'กำลังรับโมเมนต์',
     shearCapacity: 'กำลังรับแรงเฉือน',
@@ -128,6 +182,12 @@ export const translations = {
     status: 'สถานะ',
     underReinforced: 'เหล็กน้อยกว่าสมดุล (OK)',
     overReinforced: 'เหล็กมากกว่าสมดุล (NG)',
+
+    // Double beam specific
+    compressionSteelYields: 'เหล็กอัดครากตัว',
+    compressionSteelNotYields: 'เหล็กอัดไม่ครากตัว',
+    dPrime: 'd\'',
+    asPrime: 'As\'',
 
     // Units
     cm: 'ซม.',
