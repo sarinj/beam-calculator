@@ -42,20 +42,21 @@ export function SingleBeamCalculator() {
   const [stirrupSpacing, setStirrupSpacing] = useState(20);
   const [method, setMethod] = useState<CalculationMethod>('SDM');
 
+  // Create inputs object
+  const inputs: BeamInputs = useMemo(() => ({
+    concreteGrade,
+    steelGrade,
+    width,
+    height,
+    cover,
+    layers,
+    stirrupSize,
+    stirrupSpacing,
+  }), [concreteGrade, steelGrade, width, height, cover, layers, stirrupSize, stirrupSpacing]);
+
   // Calculate results
   const results = useMemo<CalculationResults | null>(() => {
     if (layers.length === 0) return null;
-
-    const inputs: BeamInputs = {
-      concreteGrade,
-      steelGrade,
-      width,
-      height,
-      cover,
-      layers,
-      stirrupSize,
-      stirrupSpacing,
-    };
 
     const sectionProps = calculateSectionProperties(inputs);
     const wsdResults = calculateWSD(inputs, sectionProps);
@@ -66,7 +67,7 @@ export function SingleBeamCalculator() {
       wsd: wsdResults,
       sdm: sdmResults,
     };
-  }, [concreteGrade, steelGrade, width, height, cover, layers, stirrupSize, stirrupSpacing]);
+  }, [inputs, layers.length]);
 
   return (
     <div className="min-h-screen lg:h-screen bg-slate-100 dark:bg-slate-900 flex flex-col lg:overflow-hidden">
@@ -147,6 +148,7 @@ export function SingleBeamCalculator() {
           <div className="flex-1 min-w-0">
             <ResultsDisplay
               results={results}
+              inputs={layers.length > 0 ? inputs : null}
               method={method}
               onMethodChange={setMethod}
             />

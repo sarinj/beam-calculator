@@ -52,22 +52,23 @@ export function DoubleBeamCalculator() {
   const [stirrupSpacing, setStirrupSpacing] = useState(20);
   const [method, setMethod] = useState<CalculationMethod>('SDM');
 
+  // Create inputs object
+  const inputs: DoubleBeamInputs = useMemo(() => ({
+    concreteGrade,
+    steelGrade,
+    width,
+    height,
+    cover,
+    coverTop,
+    tensionLayers,
+    compressionLayers,
+    stirrupSize,
+    stirrupSpacing,
+  }), [concreteGrade, steelGrade, width, height, cover, coverTop, tensionLayers, compressionLayers, stirrupSize, stirrupSpacing]);
+
   // Calculate results
   const results = useMemo<DoubleCalculationResults | null>(() => {
     if (tensionLayers.length === 0 || compressionLayers.length === 0) return null;
-
-    const inputs: DoubleBeamInputs = {
-      concreteGrade,
-      steelGrade,
-      width,
-      height,
-      cover,
-      coverTop,
-      tensionLayers,
-      compressionLayers,
-      stirrupSize,
-      stirrupSpacing,
-    };
 
     const sectionProps = calculateDoubleSectionProperties(inputs);
     const wsdResults = calculateDoubleWSD(inputs, sectionProps);
@@ -78,7 +79,7 @@ export function DoubleBeamCalculator() {
       wsd: wsdResults,
       sdm: sdmResults,
     };
-  }, [concreteGrade, steelGrade, width, height, cover, coverTop, tensionLayers, compressionLayers, stirrupSize, stirrupSpacing]);
+  }, [inputs, tensionLayers.length, compressionLayers.length]);
 
   const handleNumberInput = (
     value: string,
@@ -245,6 +246,7 @@ export function DoubleBeamCalculator() {
           <div className="flex-1 min-w-0">
             <DoubleResultsDisplay
               results={results}
+              inputs={tensionLayers.length > 0 && compressionLayers.length > 0 ? inputs : null}
               method={method}
               onMethodChange={setMethod}
             />

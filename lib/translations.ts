@@ -91,6 +91,11 @@ export const translations = {
     dPrime: 'd\'',
     asPrime: 'As\'',
 
+    // Calculation steps
+    showSteps: 'Show Steps',
+    hideSteps: 'Hide Steps',
+    calculationSteps: 'Calculation Steps',
+
     // Units
     cm: 'cm',
     cm2: 'cm²',
@@ -190,6 +195,11 @@ export const translations = {
     compressionSteelNotYields: 'เหล็กอัดไม่ครากตัว',
     dPrime: 'd\'',
     asPrime: 'As\'',
+
+    // Calculation steps
+    showSteps: 'แสดงขั้นตอน',
+    hideSteps: 'ซ่อนขั้นตอน',
+    calculationSteps: 'ขั้นตอนการคำนวณ',
 
     // Units
     cm: 'ซม.',

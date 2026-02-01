@@ -1,6 +1,6 @@
-'use client';
+"use client"
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo } from "react"
 import {
   BeamInputs,
   ConcreteGrade,
@@ -9,69 +9,70 @@ import {
   RoundBar,
   CalculationMethod,
   CalculationResults,
-} from '@/types/beam';
-import { calculateSectionProperties } from '@/lib/calculations/common';
-import { calculateWSD } from '@/lib/calculations/wsd';
-import { calculateSDM } from '@/lib/calculations/sdm';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { LanguageToggle } from '@/components/LanguageToggle';
-import { BeamSection } from '@/components/BeamSection';
-import { MaterialInputs } from '@/components/MaterialInputs';
-import { SectionInputs } from '@/components/SectionInputs';
-import { ReinforcementInputs } from '@/components/ReinforcementInputs';
-import { ResultsDisplay } from '@/components/ResultsDisplay';
+} from "@/types/beam"
+import { calculateSectionProperties } from "@/lib/calculations/common"
+import { calculateWSD } from "@/lib/calculations/wsd"
+import { calculateSDM } from "@/lib/calculations/sdm"
+import { useLanguage } from "@/contexts/LanguageContext"
+import { LanguageToggle } from "@/components/LanguageToggle"
+import { BeamSection } from "@/components/BeamSection"
+import { MaterialInputs } from "@/components/MaterialInputs"
+import { SectionInputs } from "@/components/SectionInputs"
+import { ReinforcementInputs } from "@/components/ReinforcementInputs"
+import { ResultsDisplay } from "@/components/ResultsDisplay"
 
 const defaultLayers: ReinforcementLayer[] = [
-  { id: 'layer-1', barSize: 'DB25', count: 3 },
-];
+  { id: "layer-1", barSize: "DB25", count: 3 },
+]
 
 export function BeamCalculator() {
-  const { t } = useLanguage();
+  const { t } = useLanguage()
 
   // Input states
-  const [concreteGrade, setConcreteGrade] = useState<ConcreteGrade>(240);
-  const [steelGrade, setSteelGrade] = useState<SteelGrade>('SD40');
-  const [width, setWidth] = useState(30);
-  const [height, setHeight] = useState(50);
-  const [cover, setCover] = useState(4);
-  const [layers, setLayers] = useState<ReinforcementLayer[]>(defaultLayers);
-  const [stirrupSize, setStirrupSize] = useState<RoundBar>('RB9');
-  const [stirrupSpacing, setStirrupSpacing] = useState(20);
-  const [method, setMethod] = useState<CalculationMethod>('SDM');
+  const [concreteGrade, setConcreteGrade] = useState<ConcreteGrade>(240)
+  const [steelGrade, setSteelGrade] = useState<SteelGrade>("SD40")
+  const [width, setWidth] = useState(30)
+  const [height, setHeight] = useState(50)
+  const [cover, setCover] = useState(4)
+  const [layers, setLayers] = useState<ReinforcementLayer[]>(defaultLayers)
+  const [stirrupSize, setStirrupSize] = useState<RoundBar>("RB9")
+  const [stirrupSpacing, setStirrupSpacing] = useState(20)
+  const [method, setMethod] = useState<CalculationMethod>("SDM")
+
+  // Create inputs object
+  const inputs: BeamInputs = useMemo(() => ({
+    concreteGrade,
+    steelGrade,
+    width,
+    height,
+    cover,
+    layers,
+    stirrupSize,
+    stirrupSpacing,
+  }), [concreteGrade, steelGrade, width, height, cover, layers, stirrupSize, stirrupSpacing])
 
   // Calculate results
   const results = useMemo<CalculationResults | null>(() => {
-    if (layers.length === 0) return null;
+    if (layers.length === 0) return null
 
-    const inputs: BeamInputs = {
-      concreteGrade,
-      steelGrade,
-      width,
-      height,
-      cover,
-      layers,
-      stirrupSize,
-      stirrupSpacing,
-    };
-
-    const sectionProps = calculateSectionProperties(inputs);
-    const wsdResults = calculateWSD(inputs, sectionProps);
-    const sdmResults = calculateSDM(inputs, sectionProps);
+    const sectionProps = calculateSectionProperties(inputs)
+    const wsdResults = calculateWSD(inputs, sectionProps)
+    const sdmResults = calculateSDM(inputs, sectionProps)
 
     return {
       section: sectionProps,
       wsd: wsdResults,
       sdm: sdmResults,
-    };
-  }, [concreteGrade, steelGrade, width, height, cover, layers, stirrupSize, stirrupSpacing]);
+    }
+  }, [inputs, layers.length])
 
   return (
     <div className="h-screen bg-slate-100 flex flex-col overflow-hidden">
       {/* Header */}
       <header className="bg-white border-b px-6 py-3 flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">{t('appTitle')}</h1>
-          <p className="text-sm text-slate-500">{t('appSubtitle')}</p>
+          <h1 className="text-xl font-bold text-slate-800">{t("appTitle")}</h1>
+          <p className="text-sm text-slate-500">{t("appSubtitle")}</p>
         </div>
         <LanguageToggle />
       </header>
@@ -133,6 +134,7 @@ export function BeamCalculator() {
           <div className="flex-1 min-w-0">
             <ResultsDisplay
               results={results}
+              inputs={layers.length > 0 ? inputs : null}
               method={method}
               onMethodChange={setMethod}
             />
@@ -140,5 +142,5 @@ export function BeamCalculator() {
         </div>
       </div>
     </div>
-  );
+  )
 }
