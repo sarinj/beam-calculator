@@ -104,11 +104,13 @@ export function DoubleReinforcementInputs({
   ) => (
     <div
       key={layer.id}
-      className={`flex items-center gap-2 p-2 rounded ${
-        type === 'tension' ? 'bg-blue-50' : 'bg-orange-50'
+      className={`flex flex-wrap items-center gap-2 p-2 rounded ${
+        type === 'tension'
+          ? 'bg-blue-50 dark:bg-blue-900/20'
+          : 'bg-orange-50 dark:bg-orange-900/20'
       }`}
     >
-      <span className="text-xs text-slate-500 w-8">
+      <span className="text-xs text-slate-500 dark:text-slate-400 w-8">
         {index + 1}
       </span>
 
@@ -116,12 +118,12 @@ export function DoubleReinforcementInputs({
         value={layer.barSize}
         onValueChange={(v) => updateLayer(layer.id, { barSize: v as DeformedBar }, type)}
       >
-        <SelectTrigger className="w-20 h-7 text-xs">
+        <SelectTrigger className="w-20 h-7 text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
           {deformedBars.map((bar) => (
-            <SelectItem key={bar} value={bar}>
+            <SelectItem key={bar} value={bar} className="dark:text-slate-100 dark:focus:bg-slate-700">
               {bar}
             </SelectItem>
           ))}
@@ -142,7 +144,7 @@ export function DoubleReinforcementInputs({
             type
           )
         }
-        className="w-12 h-7 text-xs text-center"
+        className="w-12 h-7 text-xs text-center dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
       />
 
       {canRemove && (
@@ -151,7 +153,7 @@ export function DoubleReinforcementInputs({
           variant="ghost"
           size="sm"
           onClick={() => removeLayer(layer.id, type)}
-          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 ml-auto"
+          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 ml-auto"
         >
           ×
         </Button>
@@ -160,15 +162,15 @@ export function DoubleReinforcementInputs({
   );
 
   return (
-    <Card className="h-full flex flex-col">
+    <Card className="h-full flex flex-col dark:bg-slate-800 dark:border-slate-700">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold">{t('reinforcement')}</CardTitle>
+        <CardTitle className="text-sm font-semibold dark:text-slate-100">{t('reinforcement')}</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col space-y-3 overflow-auto">
         {/* Compression bars (top) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-xs text-orange-600 font-medium">
+            <Label className="text-xs text-orange-600 dark:text-orange-400 font-medium">
               {t('compressionReinforcement')} ({compressionLayers.length}/{MAX_COMPRESSION_LAYERS})
             </Label>
             <Button
@@ -177,7 +179,7 @@ export function DoubleReinforcementInputs({
               size="sm"
               onClick={addCompressionLayer}
               disabled={!canAddCompressionLayer}
-              className="h-6 text-xs px-2"
+              className="h-6 text-xs px-2 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               +
             </Button>
@@ -192,7 +194,7 @@ export function DoubleReinforcementInputs({
         {/* Tension bars (bottom) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-xs text-blue-600 font-medium">
+            <Label className="text-xs text-blue-600 dark:text-blue-400 font-medium">
               {t('tensionReinforcement')} ({tensionLayers.length}/{MAX_TENSION_LAYERS})
             </Label>
             <Button
@@ -201,7 +203,7 @@ export function DoubleReinforcementInputs({
               size="sm"
               onClick={addTensionLayer}
               disabled={!canAddTensionLayer}
-              className="h-6 text-xs px-2"
+              className="h-6 text-xs px-2 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               +
             </Button>
@@ -214,19 +216,19 @@ export function DoubleReinforcementInputs({
         </div>
 
         {/* Stirrups */}
-        <div className="space-y-2 pt-2 border-t">
-          <Label className="text-xs text-slate-600">{t('stirrups')}</Label>
-          <div className="flex items-center gap-2">
+        <div className="space-y-2 pt-2 border-t dark:border-slate-700">
+          <Label className="text-xs text-slate-600 dark:text-slate-400">{t('stirrups')}</Label>
+          <div className="flex flex-wrap items-center gap-2">
             <Select
               value={stirrupSize}
               onValueChange={(v) => onStirrupSizeChange(v as RoundBar)}
             >
-              <SelectTrigger className="w-20 h-8">
+              <SelectTrigger className="w-20 h-8 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
                 {roundBars.map((bar) => (
-                  <SelectItem key={bar} value={bar}>
+                  <SelectItem key={bar} value={bar} className="dark:text-slate-100 dark:focus:bg-slate-700">
                     {bar}
                   </SelectItem>
                 ))}
@@ -235,7 +237,7 @@ export function DoubleReinforcementInputs({
 
             <span className="text-slate-400 text-sm">@</span>
 
-            <div className="relative flex-1">
+            <div className="relative flex-1 min-w-20">
               <Input
                 type="number"
                 min={5}
@@ -244,7 +246,7 @@ export function DoubleReinforcementInputs({
                 onChange={(e) =>
                   onStirrupSpacingChange(Math.min(30, Math.max(5, parseFloat(e.target.value) || 5)))
                 }
-                className="h-8 pr-10"
+                className="h-8 pr-10 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
                 {t('cm')}

@@ -18,6 +18,7 @@ import {
 } from '@/lib/calculations/double-beam';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { DoubleBeamSection } from '@/components/DoubleBeamSection';
 import { MaterialInputs } from '@/components/MaterialInputs';
 import { DoubleReinforcementInputs } from '@/components/DoubleReinforcementInputs';
@@ -91,32 +92,36 @@ export function DoubleBeamCalculator() {
   };
 
   return (
-    <div className="h-screen bg-slate-100 flex flex-col overflow-hidden">
+    <div className="min-h-screen lg:h-screen bg-slate-100 dark:bg-slate-900 flex flex-col lg:overflow-hidden">
       {/* Header */}
-      <header className="bg-white border-b px-6 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-4">
+      <header className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 px-4 sm:px-6 py-3 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 sm:gap-4">
           <Link href="/">
-            <Button variant="ghost" size="sm" className="text-slate-600">
-              {t('backToHome')}
+            <Button variant="ghost" size="sm" className="text-slate-600 dark:text-slate-300 px-2 sm:px-3">
+              <span className="hidden sm:inline">{t('backToHome')}</span>
+              <span className="sm:hidden">←</span>
             </Button>
           </Link>
-          <div className="border-l pl-4">
-            <h1 className="text-xl font-bold text-slate-800">{t('doubleBeam')}</h1>
-            <p className="text-sm text-slate-500">{t('appSubtitle')}</p>
+          <div className="border-l dark:border-slate-600 pl-2 sm:pl-4">
+            <h1 className="text-base sm:text-xl font-bold text-slate-800 dark:text-slate-100">{t('doubleBeam')}</h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 hidden sm:block">{t('appSubtitle')}</p>
           </div>
         </div>
-        <LanguageToggle />
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <LanguageToggle />
+        </div>
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 p-4 overflow-hidden">
-        <div className="h-full flex gap-4">
+      <div className="flex-1 p-3 sm:p-4 overflow-auto lg:overflow-hidden">
+        <div className="h-full flex flex-col lg:flex-row gap-3 sm:gap-4">
           {/* Left Side - Inputs */}
-          <div className="w-[460px] shrink-0 flex flex-col gap-3">
+          <div className="w-full lg:w-115 shrink-0 flex flex-col gap-3">
             {/* Top Row: Visualization + Materials */}
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               {/* Beam Visualization */}
-              <div className="bg-white rounded-xl border p-3 flex items-center justify-center">
+              <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 p-3 flex items-center justify-center">
                 <DoubleBeamSection
                   width={width}
                   height={height}
@@ -142,14 +147,14 @@ export function DoubleBeamCalculator() {
             </div>
 
             {/* Section Dimensions */}
-            <Card>
+            <Card className="dark:bg-slate-800 dark:border-slate-700">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">{t('sectionDimensions')}</CardTitle>
+                <CardTitle className="text-sm font-semibold dark:text-slate-100">{t('sectionDimensions')}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-600">{t('width')} (b)</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">{t('width')} (b)</Label>
                     <div className="relative">
                       <Input
                         type="number"
@@ -157,7 +162,7 @@ export function DoubleBeamCalculator() {
                         max={200}
                         value={width}
                         onChange={(e) => handleNumberInput(e.target.value, setWidth, 10)}
-                        className="h-8 text-sm pr-8"
+                        className="h-8 text-sm pr-8 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
                         {t('cm')}
@@ -166,7 +171,7 @@ export function DoubleBeamCalculator() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-600">{t('height')} (h)</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">{t('height')} (h)</Label>
                     <div className="relative">
                       <Input
                         type="number"
@@ -174,7 +179,7 @@ export function DoubleBeamCalculator() {
                         max={300}
                         value={height}
                         onChange={(e) => handleNumberInput(e.target.value, setHeight, 10)}
-                        className="h-8 text-sm pr-8"
+                        className="h-8 text-sm pr-8 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
                         {t('cm')}
@@ -183,7 +188,7 @@ export function DoubleBeamCalculator() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-600">{t('cover')} (bot)</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">{t('cover')} (bot)</Label>
                     <div className="relative">
                       <Input
                         type="number"
@@ -192,7 +197,7 @@ export function DoubleBeamCalculator() {
                         step={0.5}
                         value={cover}
                         onChange={(e) => handleNumberInput(e.target.value, setCover, 2)}
-                        className="h-8 text-sm pr-8"
+                        className="h-8 text-sm pr-8 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
                         {t('cm')}
@@ -201,7 +206,7 @@ export function DoubleBeamCalculator() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-600">{t('cover')} (top)</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">{t('cover')} (top)</Label>
                     <div className="relative">
                       <Input
                         type="number"
@@ -210,7 +215,7 @@ export function DoubleBeamCalculator() {
                         step={0.5}
                         value={coverTop}
                         onChange={(e) => handleNumberInput(e.target.value, setCoverTop, 2)}
-                        className="h-8 text-sm pr-8"
+                        className="h-8 text-sm pr-8 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
                         {t('cm')}

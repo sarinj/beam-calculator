@@ -4,6 +4,7 @@ import React from 'react';
 import { ReinforcementLayer, RoundBar } from '@/types/beam';
 import { deformedBarData, roundBarData } from '@/lib/calculations/common';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface DoubleBeamSectionProps {
   width: number;
@@ -29,6 +30,8 @@ export function DoubleBeamSection({
   effectiveDepthPrime,
 }: DoubleBeamSectionProps) {
   const { t } = useLanguage();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   // SVG dimensions and scaling
   const padding = 45;
@@ -51,6 +54,13 @@ export function DoubleBeamSection({
   const stirrupThickness = stirrupDia * scale;
   const coverPx = cover * scale;
   const coverTopPx = coverTop * scale;
+
+  // Colors based on theme
+  const colors = {
+    concrete: isDark ? '#475569' : '#f1f5f9',
+    concreteStroke: isDark ? '#94a3b8' : '#64748b',
+    dimension: isDark ? '#94a3b8' : '#374151',
+  };
 
   // Render tension bars (bottom)
   const renderTensionBars = () => {
@@ -199,7 +209,7 @@ export function DoubleBeamSection({
         width={svgWidth}
         height={svgHeight}
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-        className="bg-white"
+        className="bg-white dark:bg-slate-800 rounded"
       >
         {/* Concrete section */}
         <rect
@@ -207,8 +217,8 @@ export function DoubleBeamSection({
           y={beamY}
           width={beamWidth}
           height={beamHeight}
-          fill="#f1f5f9"
-          stroke="#64748b"
+          fill={colors.concrete}
+          stroke={colors.concreteStroke}
           strokeWidth={2}
         />
 
@@ -240,7 +250,7 @@ export function DoubleBeamSection({
             y1={beamY + beamHeight + 18}
             x2={beamX + beamWidth}
             y2={beamY + beamHeight + 18}
-            stroke="#374151"
+            stroke={colors.dimension}
             strokeWidth={1}
           />
           <line
@@ -248,7 +258,7 @@ export function DoubleBeamSection({
             y1={beamY + beamHeight + 12}
             x2={beamX}
             y2={beamY + beamHeight + 24}
-            stroke="#374151"
+            stroke={colors.dimension}
             strokeWidth={1}
           />
           <line
@@ -256,7 +266,7 @@ export function DoubleBeamSection({
             y1={beamY + beamHeight + 12}
             x2={beamX + beamWidth}
             y2={beamY + beamHeight + 24}
-            stroke="#374151"
+            stroke={colors.dimension}
             strokeWidth={1}
           />
           <text
@@ -264,7 +274,7 @@ export function DoubleBeamSection({
             y={beamY + beamHeight + 35}
             textAnchor="middle"
             fontSize={11}
-            fill="#374151"
+            fill={colors.dimension}
             fontWeight="500"
           >
             {width} {t('cm')}
@@ -278,7 +288,7 @@ export function DoubleBeamSection({
             y1={beamY}
             x2={beamX - 18}
             y2={beamY + beamHeight}
-            stroke="#374151"
+            stroke={colors.dimension}
             strokeWidth={1}
           />
           <line
@@ -286,7 +296,7 @@ export function DoubleBeamSection({
             y1={beamY}
             x2={beamX - 12}
             y2={beamY}
-            stroke="#374151"
+            stroke={colors.dimension}
             strokeWidth={1}
           />
           <line
@@ -294,7 +304,7 @@ export function DoubleBeamSection({
             y1={beamY + beamHeight}
             x2={beamX - 12}
             y2={beamY + beamHeight}
-            stroke="#374151"
+            stroke={colors.dimension}
             strokeWidth={1}
           />
           <text
@@ -302,7 +312,7 @@ export function DoubleBeamSection({
             y={beamY + beamHeight / 2}
             textAnchor="middle"
             fontSize={11}
-            fill="#374151"
+            fill={colors.dimension}
             fontWeight="500"
             transform={`rotate(-90, ${beamX - 28}, ${beamY + beamHeight / 2})`}
           >
@@ -312,7 +322,7 @@ export function DoubleBeamSection({
       </svg>
 
       {/* Legend */}
-      <div className="flex gap-4 mt-2 text-xs text-slate-500">
+      <div className="flex gap-4 mt-2 text-xs text-slate-500 dark:text-slate-400">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
           <span>{t('bottomBars')}</span>

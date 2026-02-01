@@ -32,23 +32,23 @@ export function MaterialInputs({
   const { t } = useLanguage();
 
   return (
-    <Card className="h-full">
+    <Card className="h-full dark:bg-slate-800 dark:border-slate-700">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold">{t('materialProperties')}</CardTitle>
+        <CardTitle className="text-sm font-semibold dark:text-slate-100">{t('materialProperties')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="space-y-1.5">
-          <Label className="text-xs text-slate-600">f&apos;c</Label>
+          <Label className="text-xs text-slate-600 dark:text-slate-400">f&apos;c</Label>
           <Select
             value={concreteGrade.toString()}
             onValueChange={(v) => onConcreteGradeChange(Number(v) as ConcreteGrade)}
           >
-            <SelectTrigger className="h-9">
+            <SelectTrigger className="h-9 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
               {concreteGrades.map((grade) => (
-                <SelectItem key={grade} value={grade.toString()}>
+                <SelectItem key={grade} value={grade.toString()} className="dark:text-slate-100 dark:focus:bg-slate-700">
                   {grade} {t('kgcm2')}
                 </SelectItem>
               ))}
@@ -57,17 +57,17 @@ export function MaterialInputs({
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs text-slate-600">fy</Label>
+          <Label className="text-xs text-slate-600 dark:text-slate-400">fy</Label>
           <Select
             value={steelGrade}
             onValueChange={(v) => onSteelGradeChange(v as SteelGrade)}
           >
-            <SelectTrigger className="h-9">
+            <SelectTrigger className="h-9 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
               {steelGrades.map((grade) => (
-                <SelectItem key={grade} value={grade}>
+                <SelectItem key={grade} value={grade} className="dark:text-slate-100 dark:focus:bg-slate-700">
                   {grade} ({steelGradeData[grade].fy})
                 </SelectItem>
               ))}
