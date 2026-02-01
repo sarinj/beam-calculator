@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Trash2 } from 'lucide-react';
 
 // Real-world limits
 const MAX_TENSION_LAYERS = 3;
@@ -155,7 +156,7 @@ export function DoubleReinforcementInputs({
           onClick={() => removeLayer(layer.id, type)}
           className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 ml-auto"
         >
-          ×
+          <Trash2 size={12} />
         </Button>
       )}
     </div>
