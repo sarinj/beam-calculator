@@ -1,7 +1,6 @@
 'use client';
 
 import { ReinforcementLayer, DeformedBar, RoundBar } from '@/types/beam';
-import { deformedBarData, roundBarData } from '@/lib/calculations/common';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -14,6 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+
+// Real-world limits
+const MAX_TENSION_LAYERS = 3;
+const MAX_COMPRESSION_LAYERS = 2;
+const MAX_BARS_PER_LAYER = 8;
 
 interface DoubleReinforcementInputsProps {
   tensionLayers: ReinforcementLayer[];
@@ -41,7 +45,11 @@ export function DoubleReinforcementInputs({
 }: DoubleReinforcementInputsProps) {
   const { t } = useLanguage();
 
+  const canAddTensionLayer = tensionLayers.length < MAX_TENSION_LAYERS;
+  const canAddCompressionLayer = compressionLayers.length < MAX_COMPRESSION_LAYERS;
+
   const addTensionLayer = () => {
+    if (!canAddTensionLayer) return;
     const newLayer: ReinforcementLayer = {
       id: `tension-${Date.now()}`,
       barSize: 'DB20',
@@ -51,6 +59,7 @@ export function DoubleReinforcementInputs({
   };
 
   const addCompressionLayer = () => {
+    if (!canAddCompressionLayer) return;
     const newLayer: ReinforcementLayer = {
       id: `comp-${Date.now()}`,
       barSize: 'DB16',
@@ -124,10 +133,14 @@ export function DoubleReinforcementInputs({
       <Input
         type="number"
         min={1}
-        max={10}
+        max={MAX_BARS_PER_LAYER}
         value={layer.count}
         onChange={(e) =>
-          updateLayer(layer.id, { count: Math.max(1, parseInt(e.target.value) || 1) }, type)
+          updateLayer(
+            layer.id,
+            { count: Math.min(MAX_BARS_PER_LAYER, Math.max(1, parseInt(e.target.value) || 1)) },
+            type
+          )
         }
         className="w-12 h-7 text-xs text-center"
       />
@@ -155,12 +168,15 @@ export function DoubleReinforcementInputs({
         {/* Compression bars (top) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-xs text-orange-600 font-medium">{t('compressionReinforcement')}</Label>
+            <Label className="text-xs text-orange-600 font-medium">
+              {t('compressionReinforcement')} ({compressionLayers.length}/{MAX_COMPRESSION_LAYERS})
+            </Label>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={addCompressionLayer}
+              disabled={!canAddCompressionLayer}
               className="h-6 text-xs px-2"
             >
               +
@@ -176,12 +192,15 @@ export function DoubleReinforcementInputs({
         {/* Tension bars (bottom) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-xs text-blue-600 font-medium">{t('tensionReinforcement')}</Label>
+            <Label className="text-xs text-blue-600 font-medium">
+              {t('tensionReinforcement')} ({tensionLayers.length}/{MAX_TENSION_LAYERS})
+            </Label>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={addTensionLayer}
+              disabled={!canAddTensionLayer}
               className="h-6 text-xs px-2"
             >
               +
@@ -220,10 +239,10 @@ export function DoubleReinforcementInputs({
               <Input
                 type="number"
                 min={5}
-                max={50}
+                max={30}
                 value={stirrupSpacing}
                 onChange={(e) =>
-                  onStirrupSpacingChange(Math.max(5, parseFloat(e.target.value) || 5))
+                  onStirrupSpacingChange(Math.min(30, Math.max(5, parseFloat(e.target.value) || 5)))
                 }
                 className="h-8 pr-10"
               />

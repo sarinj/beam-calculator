@@ -1,7 +1,6 @@
 'use client';
 
 import { ReinforcementLayer, DeformedBar, RoundBar } from '@/types/beam';
-import { deformedBarData, roundBarData } from '@/lib/calculations/common';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -14,6 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+
+// Real-world limits
+const MAX_LAYERS = 3;
+const MAX_BARS_PER_LAYER = 8;
 
 interface ReinforcementInputsProps {
   layers: ReinforcementLayer[];
@@ -37,7 +40,10 @@ export function ReinforcementInputs({
 }: ReinforcementInputsProps) {
   const { t } = useLanguage();
 
+  const canAddLayer = layers.length < MAX_LAYERS;
+
   const addLayer = () => {
+    if (!canAddLayer) return;
     const newLayer: ReinforcementLayer = {
       id: `layer-${Date.now()}`,
       barSize: 'DB20',
@@ -69,12 +75,15 @@ export function ReinforcementInputs({
         {/* Main bars */}
         <div className="flex-1 space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-xs text-slate-600">{t('mainBars')}</Label>
+            <Label className="text-xs text-slate-600">
+              {t('mainBars')} ({layers.length}/{MAX_LAYERS} {t('layers')})
+            </Label>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={addLayer}
+              disabled={!canAddLayer}
               className="h-7 text-xs"
             >
               + {t('addLayer')}
@@ -93,7 +102,9 @@ export function ReinforcementInputs({
 
                 <Select
                   value={layer.barSize}
-                  onValueChange={(v) => updateLayer(layer.id, { barSize: v as DeformedBar })}
+                  onValueChange={(v) =>
+                    updateLayer(layer.id, { barSize: v as DeformedBar })
+                  }
                 >
                   <SelectTrigger className="w-24 h-8">
                     <SelectValue />
@@ -112,10 +123,12 @@ export function ReinforcementInputs({
                 <Input
                   type="number"
                   min={1}
-                  max={10}
+                  max={MAX_BARS_PER_LAYER}
                   value={layer.count}
                   onChange={(e) =>
-                    updateLayer(layer.id, { count: Math.max(1, parseInt(e.target.value) || 1) })
+                    updateLayer(layer.id, {
+                      count: Math.min(MAX_BARS_PER_LAYER, Math.max(1, parseInt(e.target.value) || 1)),
+                    })
                   }
                   className="w-16 h-8 text-center"
                 />
@@ -165,10 +178,10 @@ export function ReinforcementInputs({
               <Input
                 type="number"
                 min={5}
-                max={50}
+                max={30}
                 value={stirrupSpacing}
                 onChange={(e) =>
-                  onStirrupSpacingChange(Math.max(5, parseFloat(e.target.value) || 5))
+                  onStirrupSpacingChange(Math.min(30, Math.max(5, parseFloat(e.target.value) || 5)))
                 }
                 className="h-9 pr-10"
               />
