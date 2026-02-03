@@ -4,6 +4,7 @@ import { useLanguage } from "@/contexts/LanguageContext"
 import { LanguageToggle } from "@/components/LanguageToggle"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { BeamTypeCard } from "@/components/BeamTypeCard"
+import { FootingTypeCard } from "@/components/FootingTypeCard"
 
 export default function Home() {
   const { t } = useLanguage()
@@ -49,6 +50,25 @@ export default function Home() {
             descriptionKey="doubleBeamDesc"
             type="double"
           />
+        </div>
+
+        {/* Footing Design Section */}
+        <div className="mt-12 sm:mt-16 pt-8 sm:pt-12 border-t dark:border-slate-700">
+          <div className="text-center mb-8 sm:mb-10">
+            <h2 className="text-lg sm:text-xl font-semibold text-slate-700 dark:text-slate-200 mb-2">
+              {t("footingDesign")}
+            </h2>
+            <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400">{t("footingDesignDesc")}</p>
+          </div>
+
+          {/* Footing Card */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-3xl mx-auto">
+            <FootingTypeCard
+              href="/footing-design"
+              titleKey="footingDesign"
+              descriptionKey="footingDesignDesc"
+            />
+          </div>
         </div>
       </main>
     </div>

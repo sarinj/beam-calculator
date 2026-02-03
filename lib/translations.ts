@@ -107,6 +107,32 @@ export const translations = {
 
     // Language toggle
     language: "Language",
+
+    // Footing design
+    footingDesign: "Footing Design and Plot",
+    footingDesignDesc: "Design footings based on soil bearing capacity",
+    concreteGrade: "f'c (ksc)",
+    allowableBearingCapacity: "Allowable Soil Bearing Capacity",
+    soilBearingCapacityUnit: "Tonf/m²",
+    importExcel: "Import Excel File",
+    selectFile: "Select .xlsx file",
+    requiredSheets: "Required Sheets",
+    jointReactionsSheet: "Joint Reactions",
+    pointObjectConnectivitySheet: "Point Object Connectivity",
+    footingData: "Footing Data",
+    uniqueName: "Unique Name",
+    xCoordinate: "x (m)",
+    yCoordinate: "y (m)",
+    dlSdl: "DL + SDL (Tonf)",
+    ll: "LL (Tonf)",
+    totalLoad: "Total Load (Tonf)",
+    requiredArea: "Required Area (m²)",
+    footingDimension: "Footing B=D (m)",
+    utilizationRatio: "Utilization (%)",
+    footingPlot: "Footing Layout Plot",
+    fileParseFailed: "Failed to parse Excel file",
+    noDataFound: "No data found in Excel sheets",
+    importSuccess: "File imported successfully",
   },
   th: {
     // App title
@@ -213,6 +239,32 @@ export const translations = {
 
     // Language toggle
     language: "ภาษา",
+
+    // Footing design
+    footingDesign: "ออกแบบเสาเข็มรองนอก และแผนการจัดวาง",
+    footingDesignDesc: "ออกแบบเสาเข็มรองนอกตามกำลังรับแรงของดิน",
+    concreteGrade: "f'c (ksc)",
+    allowableBearingCapacity: "กำลังรับแรงของดิน",
+    soilBearingCapacityUnit: "Tonf/m²",
+    importExcel: "นำเข้าไฟล์ Excel",
+    selectFile: "เลือกไฟล์ .xlsx",
+    requiredSheets: "แผ่นงานที่ต้องการ",
+    jointReactionsSheet: "Joint Reactions",
+    pointObjectConnectivitySheet: "Point Object Connectivity",
+    footingData: "ข้อมูลเสาเข็มรองนอก",
+    uniqueName: "ชื่อเฉพาะ",
+    xCoordinate: "x (เมตร)",
+    yCoordinate: "y (เมตร)",
+    dlSdl: "DL + SDL (ตัน)",
+    ll: "LL (ตัน)",
+    totalLoad: "น้ำหนักรวม (ตัน)",
+    requiredArea: "พื้นที่ที่ต้องการ (ตร.ม.)",
+    footingDimension: "เสาเข็ม B=D (เมตร)",
+    utilizationRatio: "สัดส่วนการใช้งาน (%)",
+    footingPlot: "แผนการจัดวางเสาเข็ม",
+    fileParseFailed: "ไม่สามารถอ่านไฟล์ Excel",
+    noDataFound: "ไม่พบข้อมูลในแผ่นงาน Excel",
+    importSuccess: "นำเข้าไฟล์สำเร็จ",
   },
 } as const
 
