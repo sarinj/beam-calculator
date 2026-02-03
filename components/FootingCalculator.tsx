@@ -89,36 +89,36 @@ export function FootingCalculator() {
 
       {/* Main Content */}
       <div className="flex-1 p-3 sm:p-4 overflow-hidden">
-        <div className="h-full flex flex-col lg:flex-row gap-4 overflow-y-auto">
-          {/* Left Side - Inputs */}
-          <div className="w-full lg:w-80 shrink-0 flex flex-col gap-3 sm:gap-4 lg:overflow-y-auto">
-            <FootingInputsComponent
-              concreteStrength={concreteStrength}
-              allowableBearingCapacity={allowableBearingCapacity}
-              onConcreteStrengthChange={setConcreteStrength}
-              onAllowableBearingCapacityChange={setAllowableBearingCapacity}
-              onFileImport={handleFileImport}
-              error={error}
-              successMessage={successMessage}
-            />
-          </div>
+        <div className="h-full flex flex-col lg:flex-row gap-4">
+          {/* Left Side - Inputs and Table */}
+          <div className="w-full lg:w-[30%] shrink-0 flex flex-col gap-3 sm:gap-4 lg:overflow-y-auto">
+            {/* Input Controls */}
+            <div>
+              <FootingInputsComponent
+                concreteStrength={concreteStrength}
+                allowableBearingCapacity={allowableBearingCapacity}
+                onConcreteStrengthChange={setConcreteStrength}
+                onAllowableBearingCapacityChange={setAllowableBearingCapacity}
+                onFileImport={handleFileImport}
+                error={error}
+                successMessage={successMessage}
+              />
+            </div>
 
-          {/* Right Side - Table and Plot */}
-          <div className="flex-1 flex flex-col gap-4 min-w-0 lg:overflow-hidden">
-            {/* Table */}
-            <div className="flex-shrink-0">
+            {/* Footing Data Table */}
+            <div className="flex flex-col min-h-0 flex-1">
               <h2 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-slate-100 mb-2">
                 {t('footingData')}
               </h2>
-              <div className="overflow-auto">
+              <div className="flex-1 min-h-0 overflow-hidden">
                 <FootingTable footings={results} />
               </div>
             </div>
+          </div>
 
-            {/* Plot */}
-            <div className="flex-1 min-h-0 overflow-auto">
-              <FootingPlot footings={results} />
-            </div>
+          {/* Right Side - Footing Plot (Enlarged) */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <FootingPlot footings={results} />
           </div>
         </div>
       </div>

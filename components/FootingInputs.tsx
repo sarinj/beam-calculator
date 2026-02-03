@@ -60,49 +60,9 @@ export function FootingInputs({
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      {/* Material Properties */}
-      <Card className="p-3 sm:p-4">
-        <h3 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-slate-100 mb-3">
-          {t('materialProperties')}
-        </h3>
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="concrete-strength" className="text-xs sm:text-sm">
-              {t('concreteGrade')} (ksc)
-            </Label>
-            <Input
-              id="concrete-strength"
-              type="number"
-              value={concreteStrength}
-              onChange={(e) => onConcreteStrengthChange(Number(e.target.value) || 0)}
-              min={100}
-              max={500}
-              step={10}
-              className="mt-1 text-sm"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="bearing-capacity" className="text-xs sm:text-sm">
-              {t('allowableBearingCapacity')} ({t('soilBearingCapacityUnit')})
-            </Label>
-            <Input
-              id="bearing-capacity"
-              type="number"
-              value={allowableBearingCapacity}
-              onChange={(e) => onAllowableBearingCapacityChange(Number(e.target.value) || 0)}
-              min={1}
-              max={100}
-              step={0.5}
-              className="mt-1 text-sm"
-            />
-          </div>
-        </div>
-      </Card>
-
       {/* File Import */}
-      <Card className="p-3 sm:p-4">
-        <h3 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-slate-100 mb-3">
+      <Card className="p-2 sm:p-3">
+        <h3 className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">
           {t('importExcel')}
         </h3>
         <div className="space-y-2">
@@ -130,6 +90,30 @@ export function FootingInputs({
               <li>{t('jointReactionsSheet')} (Columns: C, D, H)</li>
               <li>{t('pointObjectConnectivitySheet')} (Columns: A, F, G)</li>
             </ul>
+          </div>
+        </div>
+      </Card>
+
+      {/* Soil Properties */}
+      <Card className="p-2 sm:p-3">
+        <h3 className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">
+          Soil Properties
+        </h3>
+        <div className="space-y-2">
+          <div>
+            <Label htmlFor="bearing-capacity" className="text-xs sm:text-sm">
+              {t('allowableBearingCapacity')} ({t('soilBearingCapacityUnit')})
+            </Label>
+            <Input
+              id="bearing-capacity"
+              type="number"
+              value={allowableBearingCapacity}
+              onChange={(e) => onAllowableBearingCapacityChange(Number(e.target.value) || 0)}
+              min={1}
+              max={100}
+              step={0.5}
+              className="mt-1 text-sm"
+            />
           </div>
         </div>
       </Card>

@@ -25,6 +25,9 @@ export function calculateFootingDimensions(
   // Round up to nearest 0.2 m
   dimension = roundUpTo02m(dimension);
   
+  // Enforce minimum dimension of 1.00 m
+  dimension = Math.max(dimension, 1.0);
+  
   // Calculate actual area based on rounded dimension
   const actualArea = dimension * dimension;
   
