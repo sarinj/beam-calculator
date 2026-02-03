@@ -19,13 +19,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     const stored = localStorage.getItem("theme") as Theme | null
     if (stored) {
       setTheme(stored)
     } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
       setTheme("dark")
     }
-    setMounted(true)
   }, [])
 
   useEffect(() => {
@@ -41,14 +41,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"))
-  }
-
-  if (!mounted) {
-    return (
-      <ThemeContext.Provider value={{ theme, toggleTheme }}>
-        {children}
-      </ThemeContext.Provider>
-    )
   }
 
   return (
