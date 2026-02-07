@@ -836,3 +836,550 @@ export function exportDoubleBeamPDF(
   const fileName = `RC_Beam_Double_${method}_${new Date().toISOString().slice(0, 10)}.pdf`;
   doc.save(fileName);
 }
+
+// Helper function to add footing content to PDF document with detailed calculation steps
+function addFootingContentDetailed(
+  doc: jsPDF,
+  footing: any,
+  inputs: any,
+  bearingCapacity: number = 10,
+  startY: number = 10,
+  margin: number = 10
+): number {
+  let y = startY;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  // Combined Header Box (Full Width)
+  const headerHeight = 19;
+  const headerY = 10;
+  
+  // Draw single combined box
+  doc.setFillColor(52, 73, 94); // Dark blue-gray matching STRUCTURAL DRAWINGS
+  doc.roundedRect(margin, headerY - 5, pageWidth - 2 * margin, headerHeight, 2, 2, 'F');
+  doc.setDrawColor(52, 73, 94);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(margin, headerY - 5, pageWidth - 2 * margin, headerHeight, 2, 2, 'S');
+  
+  // LEFT SIDE: Title and Subtitle
+  doc.setTextColor(255, 255, 255); // White text
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Footing Reinforcement Design: ${footing.footingName || 'Footing'}`, margin + 3, headerY + 1);
+  
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Design Method: Strength Design Method (SDM)', margin + 3, headerY + 7);
+  
+  // RIGHT SIDE: Summary
+  const summaryX = pageWidth / 2 + 5;
+  let sumY = headerY - 1;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text('>> DESIGN SUMMARY', summaryX, sumY);
+  sumY += 5;
+  
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  const B = footing.dimension || footing.width || 0;
+  const h = footing.customThickness || footing.footingThickness || 0;
+  const actualBarSize = footing.customBarSize || inputs.barSize || 0;
+  doc.text(`Footing: ${B.toFixed(2)} x ${B.toFixed(2)} x ${(h * 100).toFixed(0)} cm`, summaryX, sumY);
+  sumY += 4;
+  doc.text(`Reinf. X: ${footing.numBarsX}-DB${actualBarSize} @ ${(footing.spacingX || 0).toFixed(0)} mm`, summaryX, sumY);
+  sumY += 4;
+  doc.text(`Reinf. Y: ${footing.numBarsY}-DB${actualBarSize} @ ${(footing.spacingY || 0).toFixed(0)} mm`, summaryX, sumY);
+  
+  // Status badge in summary (top right)
+  const allOk = footing.punchingShearOk && footing.beamShearOkX && footing.beamShearOkY;
+  const badgeX = pageWidth - margin - 32;
+  const badgeY = headerY + 6;
+  doc.setFillColor(allOk ? 46 : 231, allOk ? 204 : 76, allOk ? 113 : 60);
+  doc.roundedRect(badgeX, badgeY, 28, 6, 1.5, 1.5, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text(allOk ? 'PASSED' : 'REVIEW', badgeX + 14, badgeY + 4, { align: 'center' });
+  
+  y = headerY + headerHeight - 3;
+  
+  doc.setTextColor(0, 0, 0); // Reset to black
+  y += 15; // Space after header/summary section
+
+  // Get values (reuse B, h from summary if not defined)
+  const actualColumnWidth = footing.customColumnWidth || inputs.columnWidth || 0;
+  const actualColumnDepth = footing.customColumnDepth || inputs.columnDepth || 0;
+  const cover = inputs.cover || 75;
+  const actualEffectiveDepth = h - (cover/1000) - (actualBarSize/1000) - (actualBarSize/2000);
+  const d = actualEffectiveDepth;
+  const fc = inputs.fc || 240;
+  const fy = inputs.fy || 4000;
+  const dl_sdl = footing.dl_sdl || 0;
+  const ll = footing.ll || 0;
+  const Pu = 1.4 * dl_sdl + 1.7 * ll;
+  const qu = Pu / (B * B);
+  const beta = Math.max(actualColumnDepth, actualColumnWidth) / Math.min(actualColumnDepth, actualColumnWidth);
+  const lx = (B - actualColumnWidth) / 2;
+  const ly = (B - actualColumnDepth) / 2;
+  const bo = 2 * (actualColumnWidth + d) + 2 * (actualColumnDepth + d);
+  const phiVc = 0.85 * 0.53 * Math.sqrt(fc) * (bo * 100) * (d * 100) / 1000;
+  
+  // Setup 2-column layout
+  const col1X = margin;
+  const col2X = pageWidth / 2 + 5;
+  let leftY = y;
+  let rightY = y;
+
+  // LEFT COLUMN: Steps 1-4
+  // Step 1: Design Data with modern card design
+  doc.setFillColor(236, 240, 241); // Light gray background
+  doc.roundedRect(col1X, leftY - 3.5, (pageWidth / 2 - margin - 10), 4.5, 1, 1, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(44, 62, 80); // Dark blue-gray
+  doc.text('Step 1: Design Data', col1X + 4, leftY);
+  doc.setTextColor(0, 0, 0);
+  leftY += 4.5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.text(`f'c = ${fc} ksc (kg/cm²)`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`fy = ${fy} ksc (kg/cm²)`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`Column size = ${(actualColumnWidth * 100).toFixed(0)} x ${(actualColumnDepth * 100).toFixed(0)} cm`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`Footing size (B) = ${B.toFixed(2)} x ${B.toFixed(2)} m`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`DL + SDL = ${dl_sdl.toFixed(2)} Tonf`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`LL = ${ll.toFixed(2)} Tonf`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`Total service load = ${(dl_sdl + ll).toFixed(2)} Tonf`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`Allowable bearing capacity = ${bearingCapacity} Tonf/m²`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`Cover = ${cover} mm, Bar size = DB${actualBarSize}`, col1X + 4, leftY);
+  leftY += 6;
+
+  // Step 2: Factored Load with card design
+  doc.setFillColor(236, 240, 241);
+  doc.roundedRect(col1X, leftY - 3.5, (pageWidth / 2 - margin - 10), 4.5, 1, 1, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(44, 62, 80);
+  doc.text('Step 2: Factored Load (SDM)', col1X + 4, leftY);
+  doc.setTextColor(0, 0, 0);
+  leftY += 4.5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.text('Pu = 1.4(DL+SDL) + 1.7(LL)', col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`    = 1.4 x ${dl_sdl.toFixed(2)} + 1.7 x ${ll.toFixed(2)}`, col1X + 7, leftY);
+  leftY += 3.5;
+  doc.text(`    = ${Pu.toFixed(2)} Tonf`, col1X + 7, leftY);
+  leftY += 3.5;
+  doc.text(`qu = Pu / B² = ${Pu.toFixed(2)} / (${B.toFixed(2)}²)`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`    = ${qu.toFixed(3)} Tonf/m²`, col1X + 7, leftY);
+  leftY += 6;
+
+  // Step 3: Footing Thickness with card design
+  doc.setFillColor(236, 240, 241);
+  doc.roundedRect(col1X, leftY - 3.5, (pageWidth / 2 - margin - 10), 4.5, 1, 1, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(44, 62, 80);
+  doc.text('Step 3: Footing Thickness (from Punching Shear)', col1X + 4, leftY);
+  doc.setTextColor(0, 0, 0);
+  leftY += 4.5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.text(`Beta = c1/c2 = ${beta.toFixed(2)}`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`Assume h = ${(h * 100).toFixed(0)} cm = ${(h * 1000).toFixed(0)} mm`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`Cover = ${cover} mm, Bar size = DB${actualBarSize} mm`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text('d = h - cover - db - db/2', col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`    = ${(h * 1000).toFixed(0)} - ${cover} - ${actualBarSize} - ${(actualBarSize/2).toFixed(0)}`, col1X + 7, leftY);
+  leftY += 3.5;
+  doc.text(`    = ${(d * 1000).toFixed(1)} mm = ${(d * 100).toFixed(1)} cm`, col1X + 7, leftY);
+  leftY += 3.5;
+  doc.text('bo = 2(c1 + d) + 2(c2 + d)', col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`    = 2(${(actualColumnWidth * 100).toFixed(0)} + ${(d * 100).toFixed(1)}) + 2(${(actualColumnDepth * 100).toFixed(0)} + ${(d * 100).toFixed(1)})`, col1X + 7, leftY);
+  leftY += 3.5;
+  doc.text(`    = ${(bo * 100).toFixed(1)} cm`, col1X + 7, leftY);
+  leftY += 3.5;
+  doc.text('phiVc = 0.85 x 0.53 x sqrt(f\'c) x bo x d', col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`       = 0.85 x 0.53 x sqrt(${fc}) x ${(bo * 100).toFixed(1)} x ${(d * 100).toFixed(1)}`, col1X + 7, leftY);
+  leftY += 3.5;
+  doc.text(`       = ${(phiVc * 1000).toFixed(0)} kg = ${phiVc.toFixed(2)} Tonf`, col1X + 7, leftY);
+  leftY += 4;
+  // Status badge for punching shear
+  const punchBadgeWidth = 22;
+  doc.setFillColor(footing.punchingShearOk ? 46 : 231, footing.punchingShearOk ? 204 : 76, footing.punchingShearOk ? 113 : 60);
+  doc.roundedRect(col1X + 7, leftY - 2.5, punchBadgeWidth, 5, 1, 1, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(255, 255, 255);
+  doc.text(`Pu ${footing.punchingShearOk ? '< phiVc OK' : '> phiVc NG'}`, col1X + 7 + punchBadgeWidth/2, leftY, { align: 'center' });
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'normal');
+  leftY += 3.5;
+  doc.setFontSize(7);
+  doc.text('Note: Use 0.53 for square footing (beta ~ 1)', col1X + 7, leftY);
+  doc.setFontSize(7.5);
+  leftY += 6;
+
+  // Step 4: Design Moments with card design
+  doc.setFillColor(236, 240, 241);
+  doc.roundedRect(col1X, leftY - 3.5, (pageWidth / 2 - margin - 10), 4.5, 1, 1, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(44, 62, 80);
+  doc.text('Step 4: Design Moments (at face of column)', col1X + 4, leftY);
+  doc.setTextColor(0, 0, 0);
+  leftY += 4.5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.text(`lx = (B - c1) / 2 = (${B.toFixed(2)} - ${actualColumnWidth.toFixed(2)}) / 2 = ${lx.toFixed(3)} m`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text('Mu-x = qu x B x lx² / 2', col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`      = ${qu.toFixed(3)} x ${B.toFixed(2)} x ${lx.toFixed(3)}² / 2`, col1X + 7, leftY);
+  leftY += 3.5;
+  doc.text(`      = ${(footing.momentX || 0).toFixed(2)} Tonf-m`, col1X + 7, leftY);
+  leftY += 4;
+  doc.text(`ly = (B - c2) / 2 = (${B.toFixed(2)} - ${actualColumnDepth.toFixed(2)}) / 2 = ${ly.toFixed(3)} m`, col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text('Mu-y = qu x B x ly² / 2', col1X + 4, leftY);
+  leftY += 3.5;
+  doc.text(`      = ${qu.toFixed(3)} x ${B.toFixed(2)} x ${ly.toFixed(3)}² / 2`, col1X + 7, leftY);
+  leftY += 3.5;
+  doc.text(`      = ${(footing.momentY || 0).toFixed(2)} Tonf-m`, col1X + 7, leftY);
+  leftY += 6;
+
+  // RIGHT COLUMN: Steps 5-7
+  // Step 5: Required Steel X with card design
+  doc.setFillColor(236, 240, 241);
+  doc.roundedRect(col2X, rightY - 3.5, (pageWidth / 2 - margin - 10), 4.5, 1, 1, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(44, 62, 80);
+  doc.text('Step 5: Required Steel (X Direction)', col2X + 4, rightY);
+  doc.setTextColor(0, 0, 0);
+  rightY += 4.5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  const MuX_kgcm = (footing.momentX || 0) * 100000;
+  const bx = B * 100;
+  const dx = d * 100;
+  const Rn_x = MuX_kgcm / (0.9 * bx * dx * dx);
+  doc.text('Rn = Mu / (phi x b x d²)', col2X + 4, rightY);
+  rightY += 3.5;
+  doc.text(`    = ${MuX_kgcm.toFixed(0)} / (0.9 x ${bx.toFixed(0)} x ${dx.toFixed(1)}²)`, col2X + 7, rightY);
+  rightY += 3.5;
+  doc.text(`    = ${Rn_x.toFixed(2)} kgf/cm²`, col2X + 7, rightY);
+  rightY += 3.5;
+  doc.text('rho = (0.85 x f\'c / fy) x [1 - sqrt(1 - 2Rn / (0.85 x f\'c))]', col2X + 4, rightY);
+  rightY += 3.5;
+  const sqrtTerm_x = 1 - 2 * Rn_x / (0.85 * fc);
+  const rho_x = sqrtTerm_x > 0 ? (0.85 * fc / fy) * (1 - Math.sqrt(sqrtTerm_x)) : 0;
+  const As_req_x = rho_x * bx * dx;
+  const As_min_x = 0.0018 * bx * h * 100;
+  doc.text(`As,req = rho x b x d = ${As_req_x.toFixed(2)} cm²`, col2X + 4, rightY);
+  rightY += 3.5;
+  doc.text(`As,min = 0.0018 x b x h = ${As_min_x.toFixed(2)} cm²`, col2X + 4, rightY);
+  rightY += 3.5;
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Use As = max(As,req, As,min) = ${Math.max(As_req_x, As_min_x).toFixed(2)} cm²`, col2X + 7, rightY);
+  doc.setFont('helvetica', 'normal');
+  rightY += 3.5;
+  const Ab = Math.PI * actualBarSize * actualBarSize / 4 / 100;
+  doc.text(`Ab = pi x db² / 4 = pi x ${actualBarSize}² / 4 = ${Ab.toFixed(2)} cm²`, col2X + 4, rightY);
+  rightY += 3.5;
+  doc.text(`Number of bars = ${footing.numBarsX} - DB${actualBarSize}`, col2X + 4, rightY);
+  rightY += 3.5;
+  doc.text(`Spacing = ${(footing.spacingX || 0).toFixed(0)} mm`, col2X + 4, rightY);
+  rightY += 6;
+
+  // Step 6: Required Steel Y with card design
+  doc.setFillColor(236, 240, 241);
+  doc.roundedRect(col2X, rightY - 3.5, (pageWidth / 2 - margin - 10), 4.5, 1, 1, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(44, 62, 80);
+  doc.text('Step 6: Required Steel (Y Direction)', col2X + 4, rightY);
+  doc.setTextColor(0, 0, 0);
+  rightY += 4.5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  const MuY_kgcm = (footing.momentY || 0) * 100000;
+  const by = B * 100;
+  const dy = d * 100;
+  const Rn_y = MuY_kgcm / (0.9 * by * dy * dy);
+  const sqrtTerm_y = 1 - 2 * Rn_y / (0.85 * fc);
+  const rho_y = sqrtTerm_y > 0 ? (0.85 * fc / fy) * (1 - Math.sqrt(sqrtTerm_y)) : 0;
+  const As_req_y = rho_y * by * dy;
+  const As_min_y = 0.0018 * by * h * 100;
+  doc.text(`As,req = ${As_req_y.toFixed(2)} cm²`, col2X + 4, rightY);
+  rightY += 3.5;
+  doc.text(`As,min = ${As_min_y.toFixed(2)} cm²`, col2X + 4, rightY);
+  rightY += 3.5;
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Use As = ${Math.max(As_req_y, As_min_y).toFixed(2)} cm²`, col2X + 7, rightY);
+  doc.setFont('helvetica', 'normal');
+  rightY += 3.5;
+  doc.text(`Number of bars = ${footing.numBarsY} - DB${actualBarSize}`, col2X + 4, rightY);
+  rightY += 3.5;
+  doc.text(`Spacing = ${(footing.spacingY || 0).toFixed(0)} mm`, col2X + 4, rightY);
+  rightY += 6;
+
+  // Step 7: Beam Shear Check with card design
+  doc.setFillColor(236, 240, 241);
+  doc.roundedRect(col2X, rightY - 3.5, (pageWidth / 2 - margin - 10), 4.5, 1, 1, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(44, 62, 80);
+  doc.text('Step 7: Beam Shear Check (at d from face of column)', col2X + 4, rightY);
+  doc.setTextColor(0, 0, 0);
+  rightY += 4.5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  const x_shear = lx - d;
+  const Vu_x = qu * B * x_shear;
+  const Vc_beam = 0.85 * 0.17 * Math.sqrt(fc) * B * 100 * d * 100 / 1000;
+  doc.text(`x = (B - c1) / 2 - d = ${x_shear.toFixed(3)} m`, col2X + 4, rightY);
+  rightY += 3.5;
+  doc.text(`Vu = qu x B x x = ${Vu_x.toFixed(2)} Tonf`, col2X + 4, rightY);
+  rightY += 3.5;
+  doc.text('phiVc = 0.85 x 0.17 x sqrt(f\'c) x B x d', col2X + 4, rightY);
+  rightY += 3.5;
+  doc.text(`       = ${Vc_beam.toFixed(2)} Tonf`, col2X + 7, rightY);
+  rightY += 4;
+  // Status badge for beam shear
+  const beamOk = footing.beamShearOkX && footing.beamShearOkY;
+  const beamBadgeWidth = 30;
+  doc.setFillColor(beamOk ? 46 : 231, beamOk ? 204 : 76, beamOk ? 113 : 60);
+  doc.roundedRect(col2X + 7, rightY - 2.5, beamBadgeWidth, 5, 1, 1, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(255, 255, 255);
+  doc.text(beamOk ? 'Beam Shear OK' : 'Beam Shear NG', col2X + 7 + beamBadgeWidth/2, rightY, { align: 'center' });
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'normal');
+  rightY += 7;
+
+  // Use max Y position (no summary box at bottom since it's at top right)
+  y = Math.max(leftY, rightY) + 5;
+  
+  return y;
+}
+
+// Export single footing to PDF with detailed steps and diagrams
+export function exportFootingReinforcementToPDF(
+  footing: any,
+  inputs: any,
+  bearingCapacity: number = 10,
+  planImageData?: string,
+  sectionImageData?: string,
+  language: 'en' | 'th' = 'en'
+) {
+  const doc = new jsPDF();
+  const margin = 10;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  
+  // Add detailed calculation steps
+  const contentEndY = addFootingContentDetailed(doc, footing, inputs, bearingCapacity, 10, margin);
+  
+  // Add diagrams at the bottom - always on same page with better spacing
+  if (planImageData || sectionImageData) {
+    const imgWidth = (pageWidth - 2 * margin - 5) / 2;
+    const imgHeight = imgWidth * 0.7;
+    let diagramY = contentEndY + 8;
+    
+    // Check if need new page (leave at least 15mm margin at bottom)
+    if (diagramY + imgHeight > pageHeight - 15) {
+      doc.addPage();
+      diagramY = 15;
+    }
+    
+    // Modern section header with gradient
+    doc.setFillColor(52, 73, 94); // Dark blue-gray
+    doc.roundedRect(margin, diagramY - 6, pageWidth - 2 * margin, 10, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255);
+    doc.text('>> STRUCTURAL DRAWINGS', pageWidth / 2, diagramY, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    diagramY += 8;
+    
+    // Add images with frames
+    if (planImageData) {
+      try {
+        // White background for image
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(margin - 1, diagramY - 1, imgWidth + 2, imgHeight + 2, 2, 2, 'F');
+        doc.addImage(planImageData, 'PNG', margin, diagramY, imgWidth, imgHeight);
+        // Frame around image
+        doc.setDrawColor(52, 73, 94); // Dark blue-gray matching header
+        doc.setLineWidth(0.5);
+        doc.roundedRect(margin, diagramY, imgWidth, imgHeight, 2, 2, 'S');
+      } catch (e) {
+        console.error('Error adding plan view image:', e);
+      }
+    }
+    
+    if (sectionImageData) {
+      try {
+        // White background for image
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(margin + imgWidth + 4, diagramY - 1, imgWidth + 2, imgHeight + 2, 2, 2, 'F');
+        doc.addImage(sectionImageData, 'PNG', margin + imgWidth + 5, diagramY, imgWidth, imgHeight);
+        // Frame around image
+        doc.setDrawColor(52, 73, 94); // Dark blue-gray matching header
+        doc.setLineWidth(0.5);
+        doc.roundedRect(margin + imgWidth + 5, diagramY, imgWidth, imgHeight, 2, 2, 'S');
+      } catch (e) {
+        console.error('Error adding section view image:', e);
+      }
+    }
+  }
+
+  // Modern footer with gradient bar (on all pages)
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    
+    // Footer gradient bar
+    doc.setFillColor(52, 73, 94);
+    doc.rect(0, pageHeight - 8, pageWidth, 8, 'F');
+    
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(255, 255, 255);
+    
+    // Left: Date and project info
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')} | Footing Reinforcement Design - SDM`, margin, pageHeight - 3);
+    
+    // Right: Page number
+    doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin - 20, pageHeight - 3);
+    
+    doc.setTextColor(0, 0, 0);
+  }
+
+  // Save PDF
+  const fileName = `Footing_${footing.footingName || 'Design'}_${new Date().toISOString().slice(0, 10)}.pdf`;
+  doc.save(fileName);
+}
+
+// Export all footings to single PDF with detailed steps and diagrams
+export function exportAllFootingsToPDF(
+  footings: any[],
+  globalInputs: any,
+  bearingCapacity: number = 10,
+  diagramsData?: Array<{ plan?: string; section?: string }>,
+  language: 'en' | 'th' = 'en'
+) {
+  const doc = new jsPDF();
+  const margin = 10;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  
+  footings.forEach((footing, index) => {
+    if (index > 0) {
+      doc.addPage();
+    }
+    
+    // Use footing-specific inputs if available, otherwise use global
+    const inputs = footing.inputs || globalInputs;
+    const contentEndY = addFootingContentDetailed(doc, footing, inputs, bearingCapacity, 10, margin);
+    
+    // Add diagrams at the bottom of the page if provided for this footing
+    if (diagramsData && diagramsData[index]) {
+      const { plan, section } = diagramsData[index];
+      
+      if (plan || section) {
+        const imgWidth = (pageWidth - 2 * margin - 5) / 2;
+        const imgHeight = imgWidth * 0.7;
+        let diagramY = contentEndY + 8;
+        
+        // Check if need new page (leave at least 15mm margin at bottom)
+        if (diagramY + imgHeight > pageHeight - 15) {
+          doc.addPage();
+          diagramY = 15;
+        }
+        
+        // Modern section header with gradient
+        doc.setFillColor(52, 73, 94); // Dark blue-gray
+        doc.roundedRect(margin, diagramY - 6, pageWidth - 2 * margin, 10, 2, 2, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(255, 255, 255);
+        doc.text('>> STRUCTURAL DRAWINGS', pageWidth / 2, diagramY, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        diagramY += 8;
+        
+        // Add images with frames
+        if (plan) {
+          try {
+            // White background for image
+            doc.setFillColor(255, 255, 255);
+            doc.roundedRect(margin - 1, diagramY - 1, imgWidth + 2, imgHeight + 2, 2, 2, 'F');
+            doc.addImage(plan, 'PNG', margin, diagramY, imgWidth, imgHeight);
+            // Frame around image
+            doc.setDrawColor(52, 73, 94); // Dark blue-gray matching header
+            doc.setLineWidth(0.5);
+            doc.roundedRect(margin, diagramY, imgWidth, imgHeight, 2, 2, 'S');
+          } catch (e) {
+            console.error('Error adding plan view image:', e);
+          }
+        }
+        
+        if (section) {
+          try {
+            // White background for image
+            doc.setFillColor(255, 255, 255);
+            doc.roundedRect(margin + imgWidth + 4, diagramY - 1, imgWidth + 2, imgHeight + 2, 2, 2, 'F');
+            doc.addImage(section, 'PNG', margin + imgWidth + 5, diagramY, imgWidth, imgHeight);
+            // Frame around image
+            doc.setDrawColor(52, 73, 94); // Dark blue-gray matching header
+            doc.setLineWidth(0.5);
+            doc.roundedRect(margin + imgWidth + 5, diagramY, imgWidth, imgHeight, 2, 2, 'S');
+          } catch (e) {
+            console.error('Error adding section view image:', e);
+          }
+        }
+      }
+    }
+  });
+
+  // Modern footer with gradient bar (on all pages)
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    
+    // Footer gradient bar
+    doc.setFillColor(52, 73, 94);
+    doc.rect(0, pageHeight - 8, pageWidth, 8, 'F');
+    
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(255, 255, 255);
+    
+    // Left: Date and project info
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')} | Footing Reinforcement Design - SDM`, margin, pageHeight - 3);
+    
+    // Right: Page number
+    doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin - 20, pageHeight - 3);
+    
+    doc.setTextColor(0, 0, 0);
+  }
+
+  // Save PDF
+  const fileName = `All_Footings_Design_${new Date().toISOString().slice(0, 10)}.pdf`;
+  doc.save(fileName);
+}

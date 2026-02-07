@@ -58,12 +58,12 @@ export function FootingPlot({ footings }: FootingPlotProps) {
     const rangeX = maxX - minX + maxDim * 2;
     const rangeY = maxY - minY + maxDim * 2;
 
-    // Canvas dimensions - High resolution (2400x1500 for 600 DPI quality)
+    // Canvas dimensions - High resolution (4800x3000 for print quality)
     const canvasWidth = canvas.width;
     const canvasHeight = canvas.height;
 
-    // Reduced padding to maximize plot area
-    const padding = 60;
+    // Optimized padding for better fit
+    const padding = 30;
     const plotWidth = canvasWidth - 2 * padding;
     const plotHeight = canvasHeight - 2 * padding;
 
@@ -80,7 +80,7 @@ export function FootingPlot({ footings }: FootingPlotProps) {
 
     // Draw border with thin line
     ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 4;
     ctx.strokeRect(padding, padding, plotWidth, plotHeight);
 
     // Scale factors
@@ -93,8 +93,8 @@ export function FootingPlot({ footings }: FootingPlotProps) {
 
     // Draw grid with thinner lines
     ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([10, 10]);
+    ctx.lineWidth = 2;
+    ctx.setLineDash([20, 20]);
 
     // Vertical grid lines
     for (let i = 0; i <= 5; i++) {
@@ -118,7 +118,7 @@ export function FootingPlot({ footings }: FootingPlotProps) {
 
     // Draw axes labels - Much larger font
     ctx.fillStyle = '#64748b';
-    ctx.font = 'bold 32px sans-serif';
+    ctx.font = 'bold 64px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
 
@@ -126,7 +126,7 @@ export function FootingPlot({ footings }: FootingPlotProps) {
     for (let i = 0; i <= 5; i++) {
       const xValue = minX + (rangeX / 5) * i - maxDim;
       const xPos = padding + (plotWidth / 5) * i;
-      ctx.fillText(xValue.toFixed(1), xPos, canvasHeight - 25);
+      ctx.fillText(xValue.toFixed(1), xPos, canvasHeight - 50);
     }
 
     // Y-axis labels
@@ -135,18 +135,18 @@ export function FootingPlot({ footings }: FootingPlotProps) {
     for (let i = 0; i <= 5; i++) {
       const yValue = minY + (rangeY / 5) * i - maxDim;
       const yPos = padding + plotHeight - (plotHeight / 5) * i;
-      ctx.fillText(yValue.toFixed(1), padding - 20, yPos);
+      ctx.fillText(yValue.toFixed(1), padding - 40, yPos);
     }
 
     // Draw axis titles
-    ctx.font = 'bold 24px sans-serif';
+    ctx.font = 'bold 48px sans-serif';
     ctx.fillStyle = '#475569';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    ctx.fillText('X (m)', canvasWidth / 2, canvasHeight - 5);
+    ctx.fillText('X (m)', canvasWidth / 2, canvasHeight - 10);
     
     ctx.save();
-    ctx.translate(15, canvasHeight / 2);
+    ctx.translate(30, canvasHeight / 2);
     ctx.rotate(-Math.PI / 2);
     ctx.fillText('Y (m)', 0, 0);
     ctx.restore();
@@ -179,14 +179,14 @@ export function FootingPlot({ footings }: FootingPlotProps) {
       if (displayOptions.showFooting) {
         ctx.fillStyle = fillColor;
         ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 4;
         ctx.fillRect(centerX - size, centerY - size, size * 2, size * 2);
         ctx.strokeRect(centerX - size, centerY - size, size * 2, size * 2);
 
         // Draw center point
         ctx.fillStyle = strokeColor;
         ctx.beginPath();
-        ctx.arc(centerX, centerY, 6, 0, Math.PI * 2);
+        ctx.arc(centerX, centerY, 12, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -206,10 +206,10 @@ export function FootingPlot({ footings }: FootingPlotProps) {
       if (labelParts.length > 0) {
         const label = labelParts.join(' ');
         ctx.fillStyle = '#1e293b';
-        ctx.font = '18px sans-serif';
+        ctx.font = '36px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillText(label, centerX, centerY + size + 20);
+        ctx.fillText(label, centerX, centerY + size + 40);
       }
     }
     
@@ -311,9 +311,10 @@ export function FootingPlot({ footings }: FootingPlotProps) {
         <div className="w-full h-full overflow-hidden flex items-center justify-center">
           <canvas
             ref={canvasRef}
-            width={2400}
-            height={1500}
+            width={4800}
+            height={3000}
             className="border border-slate-200 dark:border-slate-700"
+            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
           />
         </div>
       </div>

@@ -134,6 +134,11 @@ export function FootingTable({ footings }: FootingTableProps) {
 
   return (
     <Card className="overflow-hidden flex flex-col h-full">
+      <div className="px-3 sm:px-4 pt-3 sm:pt-4 pb-2 border-b dark:border-slate-700">
+        <h2 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-slate-100">
+          {t('footingData')}
+        </h2>
+      </div>
       <div className="overflow-x-auto overflow-y-auto flex-1">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-slate-100 dark:bg-slate-700 border-b dark:border-slate-600">

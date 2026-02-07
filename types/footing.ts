@@ -41,3 +41,50 @@ export interface FootingCalculationResults {
   inputs: FootingInputs;
   importedFrom?: string;
 }
+
+// Reinforcement design inputs
+export interface ReinforcementInputs {
+  fc: number; // f'c concrete strength (ksc)
+  fy: number; // steel yield strength (ksc)
+  barSize: number; // reinforcement bar diameter (mm)
+  cover: number; // concrete cover (mm)
+  columnWidth: number; // column width (m)
+  columnDepth: number; // column depth (m)
+}
+
+// Critical footing for reinforcement design
+export interface CriticalFooting extends CalculatedFooting {
+  footingName?: string; // Custom name (F1, F2, etc.)
+  footingThickness?: number; // h (m)
+  effectiveDepth?: number; // d (m)
+  momentX?: number; // Mu-x (Tonf-m)
+  momentY?: number; // Mu-y (Tonf-m)
+  asReqX?: number; // Required steel area in X direction (cm²)
+  asReqY?: number; // Required steel area in Y direction (cm²)
+  asMinX?: number; // Minimum steel area in X direction (cm²)
+  asMinY?: number; // Minimum steel area in Y direction (cm²)
+  numBarsX?: number; // Number of bars in X direction
+  numBarsY?: number; // Number of bars in Y direction
+  spacingX?: number; // Bar spacing in X direction (mm)
+  spacingY?: number; // Bar spacing in Y direction (mm)
+  beamShearX?: number; // Vu for beam shear X (Tonf)
+  beamShearY?: number; // Vu for beam shear Y (Tonf)
+  beamShearCapacityX?: number; // Vc for beam shear X (Tonf)
+  beamShearCapacityY?: number; // Vc for beam shear Y (Tonf)
+  punchingShear?: number; // Vu for punching shear (Tonf)
+  punchingShearCapacity?: number; // Vc for punching shear (Tonf)
+  beamShearOkX?: boolean;
+  beamShearOkY?: boolean;
+  punchingShearOk?: boolean;
+  // Individual footing parameters
+  customColumnWidth?: number;
+  customColumnDepth?: number;
+  customBarSize?: number;
+  customThickness?: number;
+}
+
+// Reinforcement design results
+export interface ReinforcementResults {
+  criticalFootings: CriticalFooting[];
+  inputs: ReinforcementInputs;
+}

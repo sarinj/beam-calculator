@@ -146,6 +146,9 @@ export function getBeta1(fc: ConcreteGrade): number {
 }
 
 // Format number with specified decimal places
-export function formatNumber(value: number, decimals: number = 2): string {
+export function formatNumber(value: number | undefined | null, decimals: number = 2): string {
+  if (value === undefined || value === null || isNaN(value)) {
+    return '0';
+  }
   return value.toFixed(decimals);
 }

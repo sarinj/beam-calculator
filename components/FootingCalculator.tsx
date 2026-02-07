@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import {
   CalculatedFooting,
@@ -26,35 +26,39 @@ export function FootingCalculator() {
   const [footingData, setFootingData] = useState<ProcessedFooting[]>([]);
   const [error, setError] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Create inputs object
-  const inputs: FootingInputs = useMemo(
-    () => ({
-      concreteStrength,
-      allowableBearingCapacity,
-    }),
-    [concreteStrength, allowableBearingCapacity]
-  );
+  // Calculate results directly (no need for useMemo, calculation is fast and pure)
+  const results: CalculatedFooting[] =
+    footingData.length === 0 ? [] : calculateAllFootings(footingData, allowableBearingCapacity);
 
-  // Calculate results
-  const results = useMemo<CalculatedFooting[]>(() => {
-    if (footingData.length === 0) return [];
-
-    return calculateAllFootings(footingData, allowableBearingCapacity);
-  }, [footingData, allowableBearingCapacity]);
-
-  const handleFileImport = (footings: ProcessedFooting[]) => {
+  // Handle file import with loading state and improved error handling
+  const handleFileImport = async (footings: ProcessedFooting[]) => {
+    setIsLoading(true);
     try {
       setFootingData(footings);
       setError('');
       setSuccessMessage(t('importSuccess'));
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccessMessage(''), 3000);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : t('fileParseFailed');
       setError(errorMessage);
       setSuccessMessage('');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  // Handle proceed to reinforcement design
+  const handleProceedToReinforcement = () => {
+    if (results.length === 0) return;
+    
+    // Save footing data to localStorage
+    localStorage.setItem('footingResults', JSON.stringify(results));
+    localStorage.setItem('footingConcreteStrength', concreteStrength.toString());
+    localStorage.setItem('footingBearingCapacity', allowableBearingCapacity.toString());
   };
 
   return (
@@ -100,25 +104,33 @@ export function FootingCalculator() {
                 onConcreteStrengthChange={setConcreteStrength}
                 onAllowableBearingCapacityChange={setAllowableBearingCapacity}
                 onFileImport={handleFileImport}
+                isLoading={isLoading}
                 error={error}
                 successMessage={successMessage}
               />
             </div>
 
             {/* Footing Data Table */}
-            <div className="flex flex-col min-h-0 flex-1">
-              <h2 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-slate-100 mb-2">
-                {t('footingData')}
-              </h2>
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <FootingTable footings={results} />
-              </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <FootingTable footings={results} />
             </div>
           </div>
 
           {/* Right Side - Footing Plot (Enlarged) */}
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-3">
             <FootingPlot footings={results} />
+            
+            {/* Reinforcement Design Button */}
+            {results.length > 0 && (
+              <Link href="/footing-reinforcement" onClick={handleProceedToReinforcement}>
+                <Button 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3"
+                  size="lg"
+                >
+                  🔧 Footing Design Reinforcement →
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
