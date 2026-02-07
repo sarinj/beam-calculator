@@ -77,6 +77,9 @@ export interface CriticalFooting extends CalculatedFooting {
   beamShearOkY?: boolean;
   punchingShearOk?: boolean;
   // Individual footing parameters
+  customFc?: number;
+  customFy?: number;
+  customCover?: number;
   customColumnWidth?: number;
   customColumnDepth?: number;
   customBarSize?: number;

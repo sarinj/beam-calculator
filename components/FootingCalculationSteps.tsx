@@ -33,6 +33,7 @@ export function FootingCalculationSteps({
   const actualEffectiveDepth = footing.customThickness 
     ? (footing.customThickness - cover/1000 - actualBarSize/1000 - actualBarSize/2000)
     : d;
+  const rho_min = fy >= 4000 ? 0.0020 : 0.0018;
   
   return (
     <Card className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-800">
@@ -89,7 +90,7 @@ export function FootingCalculationSteps({
             <p className="font-mono ml-4">= 2({(actualColumnWidth * 100).toFixed(0)} + {(actualEffectiveDepth * 100).toFixed(1)}) + 2({(actualColumnDepth * 100).toFixed(0)} + {(actualEffectiveDepth * 100).toFixed(1)})</p>
             <p className="font-mono ml-4">= {((2 * (actualColumnWidth + actualEffectiveDepth) + 2 * (actualColumnDepth + actualEffectiveDepth)) * 100).toFixed(1)} cm</p>
             <p className="font-mono">φVc = 0.85 × 0.53 × √f'c × bo × d</p>
-            <p className="font-mono ml-4">= 0.85 × 0.53 × √{fc} × {((2 * (actualColumnWidth + d) + 2 * (actualColumnDepth + d)) * 100).toFixed(1)} × {(d * 100).toFixed(1)}</p>
+            <p className="font-mono ml-4">= 0.85 × 0.53 × √{fc} × {((2 * (actualColumnWidth + actualEffectiveDepth) + 2 * (actualColumnDepth + actualEffectiveDepth)) * 100).toFixed(1)} × {(actualEffectiveDepth * 100).toFixed(1)}</p>
             <p className="font-mono ml-4">= {((footing.punchingShearCapacity || 0) * 1000).toFixed(0)} kg = {(footing.punchingShearCapacity || 0).toFixed(2)} Tonf</p>
             <p className={`font-semibold ml-4 ${footing.punchingShearOk ? 'text-green-600' : 'text-red-600'}`}>
               Pu = {Pu.toFixed(2)} Tonf {footing.punchingShearOk ? '< φVc ✓ OK' : '> φVc ✗ NG'}
@@ -129,7 +130,7 @@ export function FootingCalculationSteps({
             <p className="font-mono ml-4">= {(((footing.momentX || 0) * 100000) / (0.9 * B * 100 * (actualEffectiveDepth * 100) * (actualEffectiveDepth * 100))).toFixed(2)} kgf/cm²</p>
             <p className="font-mono">ρ = (0.85 × f'c / fy) × [1 - √(1 - 2Rn / (0.85 × f'c))]</p>
             <p className="font-mono">As,req = ρ × b × d = {(footing.asReqX || 0).toFixed(2)} cm²</p>
-            <p className="font-mono">As,min = 0.0018 × b × h = {(footing.asMinX || 0).toFixed(2)} cm²</p>
+            <p className="font-mono">As,min = {rho_min} × b × h = {(footing.asMinX || 0).toFixed(2)} cm²</p>
             <p className="font-semibold ml-4">Use As = max(As,req, As,min) = {Math.max(footing.asReqX || 0, footing.asMinX || 0).toFixed(2)} cm²</p>
             <p className="font-mono">Ab = π × db² / 4 = π × {actualBarSize}² / 4 = {(Math.PI * actualBarSize * actualBarSize / 4 / 100).toFixed(2)} cm²</p>
             <p className="font-mono">Number of bars = {footing.numBarsX} - DB{actualBarSize}</p>
@@ -157,9 +158,13 @@ export function FootingCalculationSteps({
             Step 7: Beam Shear Check (at d from face of column)
           </h4>
           <div className="space-y-1 ml-4 text-slate-600 dark:text-slate-400">
-            <p className="font-mono">x = (B - c₁) / 2 - d = {((B - actualColumnWidth) / 2 - actualEffectiveDepth).toFixed(3)} m</p>
-            <p className="font-mono">Vu = qu × B × x = {(footing.beamShearX || 0).toFixed(2)} Tonf</p>
-            <p className="font-mono">φVc = 0.85 × 0.17 × √f'c × B × d</p>
+            <p className="font-semibold text-slate-700 dark:text-slate-300">X-direction:</p>
+            <p className="font-mono ml-2">x = (B - c₁) / 2 - d = {((B - actualColumnWidth) / 2 - actualEffectiveDepth).toFixed(3)} m</p>
+            <p className="font-mono ml-2">Vu = qu × B × x = {(footing.beamShearX || 0).toFixed(2)} Tonf</p>
+            <p className="font-semibold text-slate-700 dark:text-slate-300 mt-1">Y-direction:</p>
+            <p className="font-mono ml-2">x = (B - c₂) / 2 - d = {((B - actualColumnDepth) / 2 - actualEffectiveDepth).toFixed(3)} m</p>
+            <p className="font-mono ml-2">Vu = qu × B × x = {(footing.beamShearY || 0).toFixed(2)} Tonf</p>
+            <p className="font-mono mt-1">φVc = 0.85 × 0.17 × √f'c × B × d</p>
             <p className="font-mono ml-4">= {(footing.beamShearCapacityX || 0).toFixed(2)} Tonf</p>
             <p className={`font-semibold ml-4 ${footing.beamShearOkX && footing.beamShearOkY ? 'text-green-600' : 'text-red-600'}`}>
               {footing.beamShearOkX && footing.beamShearOkY ? '✓ Beam shear OK' : '✗ Beam shear NG - Increase thickness'}

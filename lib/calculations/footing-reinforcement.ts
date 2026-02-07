@@ -198,16 +198,20 @@ export function checkBeamShear(
   thickness: number,
   d: number,
   inputs: ReinforcementInputs,
-  allowableBearingCapacity: number
+  allowableBearingCapacity: number,
+  direction: 'x' | 'y' = 'x'
 ): { Vu: number; Vc: number; isOk: boolean } {
   const B = footing.dimension; // m
   // Factored load: Pu = 1.4(DL+SDL) + 1.7(LL)
   const Pu = 1.4 * footing.dl_sdl + 1.7 * footing.ll; // Tonf
   const qu = Pu / (B * B); // Tonf/m²
-  const { columnWidth, fc } = inputs;
+  const { columnWidth, columnDepth, fc } = inputs;
+  
+  // Use columnWidth for X direction, columnDepth for Y direction
+  const columnDim = direction === 'x' ? columnWidth : columnDepth;
   
   // Critical section at d from face of column
-  const x = (B - columnWidth) / 2 - d; // m
+  const x = (B - columnDim) / 2 - d; // m
   
   if (x <= 0) {
     return { Vu: 0, Vc: 0, isOk: true }; // No shear at this location
@@ -304,8 +308,8 @@ export function designFootingReinforcement(
   );
   
   // Check beam shear
-  const beamShearX = checkBeamShear(footing, h, d, inputs, allowableBearingCapacity);
-  const beamShearY = checkBeamShear(footing, h, d, inputs, allowableBearingCapacity);
+  const beamShearX = checkBeamShear(footing, h, d, inputs, allowableBearingCapacity, 'x');
+  const beamShearY = checkBeamShear(footing, h, d, inputs, allowableBearingCapacity, 'y');
   
   // Check punching shear
   const punchingShear = checkPunchingShear(footing, h, d, inputs);

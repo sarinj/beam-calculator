@@ -25,6 +25,8 @@ export function FootingReinforcementDesign() {
   const [footings, setFootings] = useState<CalculatedFooting[]>([]);
   const [bearingCapacity, setBearingCapacity] = useState<number>(10);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+  const [renderExportDiagrams, setRenderExportDiagrams] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('0');
   const [showSteps, setShowSteps] = useState<Record<string, boolean>>({});
   const [showDiagrams, setShowDiagrams] = useState<Record<string, boolean>>({});
@@ -82,9 +84,9 @@ export function FootingReinforcementDesign() {
     return criticalFootings.map((footing, index) => {
       const custom = customInputs[index] || {};
       const inputs: ReinforcementInputs = {
-        fc: (custom as any).customFc || globalInputs.fc,
-        fy: (custom as any).customFy || globalInputs.fy,
-        cover: (custom as any).customCover || globalInputs.cover,
+        fc: custom.customFc || globalInputs.fc,
+        fy: custom.customFy || globalInputs.fy,
+        cover: custom.customCover || globalInputs.cover,
         barSize: custom.customBarSize || globalInputs.barSize,
         columnWidth: custom.customColumnWidth || globalInputs.columnWidth,
         columnDepth: custom.customColumnDepth || globalInputs.columnDepth,
@@ -101,6 +103,9 @@ export function FootingReinforcementDesign() {
       return {
         ...designed,
         footingName: footingNames[index] || `F${index + 1}`,
+        customFc: custom.customFc,
+        customFy: custom.customFy,
+        customCover: custom.customCover,
         customColumnWidth: custom.customColumnWidth,
         customColumnDepth: custom.customColumnDepth,
         customBarSize: custom.customBarSize,
@@ -140,72 +145,78 @@ export function FootingReinforcementDesign() {
   };
   
   const handleExportPDF = async (footing: CriticalFooting, index: number) => {
-    const custom = customInputs[index] || {};
-    const inputs: ReinforcementInputs = {
-      fc: (custom as any).customFc || globalInputs.fc,
-      fy: (custom as any).customFy || globalInputs.fy,
-      cover: (custom as any).customCover || globalInputs.cover,
-      barSize: custom.customBarSize || globalInputs.barSize,
-      columnWidth: custom.customColumnWidth || globalInputs.columnWidth,
-      columnDepth: custom.customColumnDepth || globalInputs.columnDepth,
-    };
-    
-    // Get canvas images from FootingDiagram
-    const planCanvas = document.querySelector(`canvas[data-footing-plan="${index}"]`) as HTMLCanvasElement;
-    const sectionCanvas = document.querySelector(`canvas[data-footing-section="${index}"]`) as HTMLCanvasElement;
-    
-    const planImageData = planCanvas?.toDataURL('image/png');
-    const sectionImageData = sectionCanvas?.toDataURL('image/png');
-    
-    exportFootingReinforcementToPDF(footing, inputs, bearingCapacity, planImageData, sectionImageData);
+    setIsExporting(true);
+    try {
+      const custom = customInputs[index] || {};
+      const inputs: ReinforcementInputs = {
+        fc: custom.customFc || globalInputs.fc,
+        fy: custom.customFy || globalInputs.fy,
+        cover: custom.customCover || globalInputs.cover,
+        barSize: custom.customBarSize || globalInputs.barSize,
+        columnWidth: custom.customColumnWidth || globalInputs.columnWidth,
+        columnDepth: custom.customColumnDepth || globalInputs.columnDepth,
+      };
+      
+      // Render hidden export diagrams for canvas capture
+      setRenderExportDiagrams(true);
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Get canvas images from the hidden export container
+      const planCanvas = document.querySelector(`canvas[data-export-plan="${index}"]`) as HTMLCanvasElement;
+      const sectionCanvas = document.querySelector(`canvas[data-export-section="${index}"]`) as HTMLCanvasElement;
+      
+      const planImageData = planCanvas?.toDataURL('image/png');
+      const sectionImageData = sectionCanvas?.toDataURL('image/png');
+      
+      exportFootingReinforcementToPDF(footing, inputs, bearingCapacity, planImageData, sectionImageData);
+      
+      setRenderExportDiagrams(false);
+    } finally {
+      setIsExporting(false);
+    }
   };
   
   const handleExportAllPDF = async () => {
-    // Temporarily show all diagrams to ensure canvas elements exist
-    const originalShowDiagrams = { ...showDiagrams };
-    const allDiagramsShown: Record<string, boolean> = {};
-    designedFootings.forEach((_, index) => {
-      allDiagramsShown[index.toString()] = true;
-    });
-    setShowDiagrams(allDiagramsShown);
-    
-    // Wait for diagrams to render
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Prepare all footings with their inputs for PDF export
-    const footingsWithInputs = designedFootings.map((footing, index) => {
-      const custom = customInputs[index] || {};
-      return {
-        ...footing,
-        inputs: {
-          fc: (custom as any).customFc || globalInputs.fc,
-          fy: (custom as any).customFy || globalInputs.fy,
-          cover: (custom as any).customCover || globalInputs.cover,
-          barSize: custom.customBarSize || globalInputs.barSize,
-          columnWidth: custom.customColumnWidth || globalInputs.columnWidth,
-          columnDepth: custom.customColumnDepth || globalInputs.columnDepth,
-        }
-      };
-    });
-    
-    // Collect all diagram images
-    const diagramsData = designedFootings.map((_, index) => {
-      const planCanvas = document.querySelector(`canvas[data-footing-plan="${index}"]`) as HTMLCanvasElement;
-      const sectionCanvas = document.querySelector(`canvas[data-footing-section="${index}"]`) as HTMLCanvasElement;
+    setIsExporting(true);
+    try {
+      // Render hidden export diagrams for ALL footings (outside Tabs)
+      setRenderExportDiagrams(true);
+      await new Promise(resolve => setTimeout(resolve, 800));
       
-      return {
-        plan: planCanvas?.toDataURL('image/png'),
-        section: sectionCanvas?.toDataURL('image/png')
-      };
-    });
-    
-    // Export all to single PDF
-    exportAllFootingsToPDF(footingsWithInputs, globalInputs, bearingCapacity, diagramsData);
-    
-    // Restore original showDiagrams state
-    setTimeout(() => {
-      setShowDiagrams(originalShowDiagrams);
-    }, 1000);
+      // Prepare all footings with their inputs for PDF export
+      const footingsWithInputs = designedFootings.map((footing, index) => {
+        const custom = customInputs[index] || {};
+        return {
+          ...footing,
+          inputs: {
+            fc: custom.customFc || globalInputs.fc,
+            fy: custom.customFy || globalInputs.fy,
+            cover: custom.customCover || globalInputs.cover,
+            barSize: custom.customBarSize || globalInputs.barSize,
+            columnWidth: custom.customColumnWidth || globalInputs.columnWidth,
+            columnDepth: custom.customColumnDepth || globalInputs.columnDepth,
+          }
+        };
+      });
+      
+      // Collect all diagram images from the hidden export container
+      const diagramsData = designedFootings.map((_, index) => {
+        const planCanvas = document.querySelector(`canvas[data-export-plan="${index}"]`) as HTMLCanvasElement;
+        const sectionCanvas = document.querySelector(`canvas[data-export-section="${index}"]`) as HTMLCanvasElement;
+        
+        return {
+          plan: planCanvas?.toDataURL('image/png'),
+          section: sectionCanvas?.toDataURL('image/png')
+        };
+      });
+      
+      // Export all to single PDF
+      exportAllFootingsToPDF(footingsWithInputs, globalInputs, bearingCapacity, diagramsData);
+      
+      setRenderExportDiagrams(false);
+    } finally {
+      setIsExporting(false);
+    }
   };
   
   if (isLoading) {
@@ -234,8 +245,8 @@ export function FootingReinforcementDesign() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={handleExportAllPDF} variant="outline" size="sm">
-            📄 Export All
+          <Button onClick={handleExportAllPDF} variant="outline" size="sm" disabled={isExporting}>
+            {isExporting ? '⏳ Exporting...' : '📄 Export All'}
           </Button>
           <ThemeToggle />
           <LanguageToggle />
@@ -278,8 +289,8 @@ export function FootingReinforcementDesign() {
                       <div>
                         <Label className="text-xs">f'c (ksc)</Label>
                         <Select
-                          value={((customInputs[index] as any)?.customFc || globalInputs.fc).toString()}
-                          onValueChange={(value) => handleCustomInputChange(index, 'customFc' as any, Number(value))}
+                          value={(customInputs[index]?.customFc || globalInputs.fc).toString()}
+                          onValueChange={(value) => handleCustomInputChange(index, 'customFc', Number(value))}
                         >
                           <SelectTrigger className="h-8 text-sm">
                             <SelectValue placeholder="f'c" />
@@ -298,8 +309,8 @@ export function FootingReinforcementDesign() {
                       <div>
                         <Label className="text-xs">fy (ksc)</Label>
                         <Select
-                          value={((customInputs[index] as any)?.customFy || globalInputs.fy).toString()}
-                          onValueChange={(value) => handleCustomInputChange(index, 'customFy' as any, Number(value))}
+                          value={(customInputs[index]?.customFy || globalInputs.fy).toString()}
+                          onValueChange={(value) => handleCustomInputChange(index, 'customFy', Number(value))}
                         >
                           <SelectTrigger className="h-8 text-sm">
                             <SelectValue placeholder="fy" />
@@ -316,8 +327,8 @@ export function FootingReinforcementDesign() {
                         <Label className="text-xs">Cover (mm)</Label>
                         <Input
                           type="number"
-                          value={(customInputs[index] as any)?.customCover || globalInputs.cover}
-                          onChange={(e) => handleCustomInputChange(index, 'customCover' as any, Number(e.target.value))}
+                          value={customInputs[index]?.customCover || globalInputs.cover}
+                          onChange={(e) => handleCustomInputChange(index, 'customCover', Number(e.target.value))}
                           min={50}
                           max={150}
                           step={5}
@@ -407,8 +418,8 @@ export function FootingReinforcementDesign() {
                           >
                             {showSteps[index.toString()] ? '▼ Hide Steps' : '▶ Show Steps'}
                           </Button>
-                          <Button onClick={() => handleExportPDF(footing, index)} size="sm" className="h-7 text-xs">
-                            📄 PDF
+                          <Button onClick={() => handleExportPDF(footing, index)} size="sm" className="h-7 text-xs" disabled={isExporting}>
+                            {isExporting ? '⏳' : '📄'} PDF
                           </Button>
                         </div>
                       </div>
@@ -540,6 +551,14 @@ export function FootingReinforcementDesign() {
                               </span>
                             </div>
                             <div className="flex justify-between">
+                              <span className="text-slate-600 dark:text-slate-400">Vu(Y):</span>
+                              <span className="font-medium">{(footing.beamShearY || 0).toFixed(2)} T</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-600 dark:text-slate-400">φVc(Y):</span>
+                              <span className="font-medium">{(footing.beamShearCapacityY || 0).toFixed(2)} T</span>
+                            </div>
+                            <div className="flex justify-between">
                               <span className="text-slate-600 dark:text-slate-400">Y:</span>
                               <span className={`font-semibold ${footing.beamShearOkY ? 'text-green-600' : 'text-red-600'}`}>
                                 {footing.beamShearOkY ? '✓ OK' : '✗ NG'}
@@ -585,9 +604,9 @@ export function FootingReinforcementDesign() {
                         <FootingDiagram 
                           footing={footing}
                           inputs={{
-                            fc: (customInputs[index] as any)?.customFc || globalInputs.fc,
-                            fy: (customInputs[index] as any)?.customFy || globalInputs.fy,
-                            cover: (customInputs[index] as any)?.customCover || globalInputs.cover,
+                            fc: customInputs[index]?.customFc || globalInputs.fc,
+                            fy: customInputs[index]?.customFy || globalInputs.fy,
+                            cover: customInputs[index]?.customCover || globalInputs.cover,
                             barSize: footing.customBarSize || globalInputs.barSize,
                             columnWidth: footing.customColumnWidth || globalInputs.columnWidth,
                             columnDepth: footing.customColumnDepth || globalInputs.columnDepth,
@@ -602,9 +621,9 @@ export function FootingReinforcementDesign() {
                     <FootingCalculationSteps
                       footing={footing}
                       inputs={{
-                        fc: (customInputs[index] as any)?.customFc || globalInputs.fc,
-                        fy: (customInputs[index] as any)?.customFy || globalInputs.fy,
-                        cover: (customInputs[index] as any)?.customCover || globalInputs.cover,
+                        fc: customInputs[index]?.customFc || globalInputs.fc,
+                        fy: customInputs[index]?.customFy || globalInputs.fy,
+                        cover: customInputs[index]?.customCover || globalInputs.cover,
                         barSize: footing.customBarSize || globalInputs.barSize,
                         columnWidth: footing.customColumnWidth || globalInputs.columnWidth,
                         columnDepth: footing.customColumnDepth || globalInputs.columnDepth,
@@ -618,6 +637,29 @@ export function FootingReinforcementDesign() {
           </Card>
         </div>
       </div>
+      
+      {/* Hidden off-screen container for export diagram rendering */}
+      {/* All FootingDiagrams rendered here simultaneously so canvas elements exist for PDF capture */}
+      {renderExportDiagrams && (
+        <div style={{ position: 'fixed', left: '-9999px', top: 0, opacity: 0, pointerEvents: 'none' }}>
+          {designedFootings.map((footing, index) => (
+            <FootingDiagram
+              key={`export-${index}`}
+              footing={footing}
+              inputs={{
+                fc: customInputs[index]?.customFc || globalInputs.fc,
+                fy: customInputs[index]?.customFy || globalInputs.fy,
+                cover: customInputs[index]?.customCover || globalInputs.cover,
+                barSize: footing.customBarSize || globalInputs.barSize,
+                columnWidth: footing.customColumnWidth || globalInputs.columnWidth,
+                columnDepth: footing.customColumnDepth || globalInputs.columnDepth,
+              }}
+              index={index}
+              exportMode={true}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
