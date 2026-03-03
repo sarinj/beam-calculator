@@ -105,7 +105,9 @@ export function computeGrossProperties(
     Ix += 2 * (lipIself + flatLip * t * Math.pow(halfD - t / 2 - flatLip / 2, 2));
   }
   // Corner contribution (approximate)
-  Ix += nCorners * cornerLen * t * Math.pow((halfD - radius / 2) * 0.5, 2) * 0.5;
+  // Top 2 corners at y ≈ ±(halfD - rMid/2), bottom 2 similarly
+  const yCorner = halfD - rMid / 2;
+  Ix += nCorners * cornerLen * t * yCorner * yCorner;
 
   // Iy about centroidal y-axis
   let Iy = 0;
@@ -202,8 +204,15 @@ function effectiveWidth(
 /**
  * Compute effective section properties using the Effective Width Method.
  *
- * Iterates to convergence as the neutral axis shifts when
- * ineffective portions of the web are removed.
+ * Properly builds the effective section from individual elements,
+ * computes the shifted neutral axis, and determines Ixe about that
+ * shifted axis. This is critical for accurate Ze and moment capacity.
+ *
+ * For bending about the major axis (x–x):
+ *  - Top flange, top lip: compression → may lose effectiveness
+ *  - Bottom flange, bottom lip: tension → fully effective
+ *  - Web: stress gradient, effective width distributed as two strips
+ *  - Corners: always fully effective
  */
 export function computeEffectiveProperties(
   geo: CFSGeometry,
@@ -216,39 +225,120 @@ export function computeEffectiveProperties(
   const flatWeb = d - 2 * (radius + t);
   const flatFlange = bf - 2 * (radius + t);
   const flatLip = lipLength > 0 ? lipLength - (radius + t / 2) : 0;
+  const halfD = d / 2;
+  const rMid = radius + t / 2;
+  const cornerLen = (Math.PI / 2) * rMid;
 
-  // Stress at extreme fibre = fy (for strength determination)
+  // Stress at extreme compression fibre = fy
   const f = fy;
 
-  // ── Flange effective width (stiffened by web + lip) ──
+  // ── Effective widths ──
+  // Top flange (compression, stiffened if lipped)
   const kFlange = flatLip > 0 ? 4.0 : 0.43;
   const flangeEW = effectiveWidth(flatFlange, t, f, E, kFlange);
 
-  // ── Lip effective width (unstiffened) ──
+  // Top lip (compression, unstiffened)
   const kLip = 0.43;
   const lipEW = effectiveWidth(flatLip, t, f, E, kLip);
 
-  // ── Web effective width (stiffened, stress gradient) ──
-  // For bending, the web has a stress gradient.
-  // k ≈ 23.9 for pure bending (ψ = -1)
+  // Web (stress gradient, ψ = −1 for pure bending, k ≈ 23.9)
   const kWeb = 23.9;
   const webEW = effectiveWidth(flatWeb, t, f, E, kWeb);
 
+  // ── Web effective strip distribution (Cl. 2.2.1.2) ──
+  // For ψ = −1 (pure bending):
+  //   b_e1 = b_eff / (3 − ψ) = b_eff / 4  (near max compression edge)
+  //   b_e2 = b_eff − b_e1 = 3·b_eff/4     (near tension edge)
+  // If web is fully effective, use full flat web.
+  const webFullyEffective = webEW.lambda <= 0.673;
+  const be1 = webFullyEffective ? flatWeb / 2 : webEW.bEff / 4;
+  const be2 = webFullyEffective ? flatWeb / 2 : 3 * webEW.bEff / 4;
+
+  // ── Build effective element table ──
+  // y measured from mid-depth, positive = compression side (top)
+  const elements: { area: number; y: number; Iself: number }[] = [];
+
+  // Web strip 1 (near compression edge at top of flat web)
+  const yWebTop = flatWeb / 2; // top of flat web from mid-depth
+  elements.push({
+    area: be1 * t,
+    y: yWebTop - be1 / 2, // centroid of strip
+    Iself: t * be1 * be1 * be1 / 12,
+  });
+
+  // Web strip 2 (near tension edge at bottom of flat web)
+  const yWebBot = -flatWeb / 2;
+  elements.push({
+    area: be2 * t,
+    y: yWebBot + be2 / 2, // centroid of strip
+    Iself: t * be2 * be2 * be2 / 12,
+  });
+
+  // Top flange (compression, reduced)
+  const yTopFlange = halfD - t / 2;
+  elements.push({
+    area: flangeEW.bEff * t,
+    y: yTopFlange,
+    Iself: flangeEW.bEff * t * t * t / 12,
+  });
+
+  // Bottom flange (tension, fully effective)
+  elements.push({
+    area: flatFlange * t,
+    y: -(halfD - t / 2),
+    Iself: flatFlange * t * t * t / 12,
+  });
+
+  // Top lip (compression, reduced)
+  if (flatLip > 0) {
+    elements.push({
+      area: lipEW.bEff * t,
+      y: halfD - t / 2 - lipEW.bEff / 2, // centroid of effective lip
+      Iself: t * lipEW.bEff * lipEW.bEff * lipEW.bEff / 12,
+    });
+  }
+
+  // Bottom lip (tension, fully effective)
+  if (flatLip > 0) {
+    elements.push({
+      area: flatLip * t,
+      y: -(halfD - t / 2 - flatLip / 2),
+      Iself: t * flatLip * flatLip * flatLip / 12,
+    });
+  }
+
+  // Top 2 corners
+  const yCornerTop = halfD - rMid / 2;
+  elements.push({ area: 2 * cornerLen * t, y: yCornerTop, Iself: 0 });
+
+  // Bottom 2 corners
+  elements.push({ area: 2 * cornerLen * t, y: -yCornerTop, Iself: 0 });
+
   // ── Effective area ──
-  const cornerLen = (Math.PI / 2) * (radius + t / 2);
-  const Ae =
-    (webEW.bEff + 2 * flangeEW.bEff + 2 * lipEW.bEff + 4 * cornerLen) * t;
+  const Ae = elements.reduce((s, e) => s + e.area, 0);
+
+  // ── Shifted neutral axis ──
+  const yNA = Ae > 0 ? elements.reduce((s, e) => s + e.area * e.y, 0) / Ae : 0;
+
+  // ── Effective Ix about shifted NA (parallel axis theorem) ──
+  let Ixe = 0;
+  elements.forEach((e) => {
+    Ixe += e.Iself + e.area * (e.y - yNA) * (e.y - yNA);
+  });
 
   // ── Effective section modulus ──
-  // Simplified: scale gross properties by area ratio
-  const ratio = gross.Ag > 0 ? Ae / gross.Ag : 1;
+  // Distance from shifted NA to extreme compression fiber (top)
+  const ycf = halfD - yNA;
+  // Distance from shifted NA to extreme tension fiber (bottom)
+  const ytf = halfD + yNA;
+  // Ze uses the compression side (governs for strength)
+  const Sxe = ycf > 0 ? Ixe / ycf : 0;
+  const Ze = Math.min(Sxe, ytf > 0 ? Ixe / ytf : Sxe);
 
-  const Ixe = gross.Ix * ratio;
-  const Iye = gross.Iy * ratio;
-  const halfD = d / 2;
-  const Sxe = Ixe / (halfD || 1);
+  // ── Effective Iy (minor axis — use ratio approach, minor axis NA shift is small) ──
+  const ratioY = gross.Ag > 0 ? Ae / gross.Ag : 1;
+  const Iye = gross.Iy * ratioY;
   const Sye = Iye / (Math.max(gross.xc, bf - gross.xc) || 1);
-  const Ze = Sxe;
 
   return {
     Ae,

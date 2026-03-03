@@ -259,7 +259,8 @@ export function computeBendingCapacity(
   geo: CFSGeometry,
   member: CFSMember,
   gross: GrossSectionProperties,
-  effective: EffectiveSectionProperties
+  effective: EffectiveSectionProperties,
+  distortionalFactor: number = 1.0
 ): BendingResult {
   const { fy } = mat;
   const phi_b = 0.90; // AS/NZS 4600 capacity reduction factor for bending
@@ -271,7 +272,11 @@ export function computeBendingCapacity(
   const Mne_local = computeLocalBucklingMoment(fy, effective);
 
   // 2. Distortional buckling
-  const { fcrd, Lcrd } = computeDistortionalBucklingStress(geo, mat);
+  // For multi-member assemblies, the connected webs provide additional
+  // rotational restraint at the flange-web junction, increasing fcrd.
+  // The distortionalFactor (typically √n for n members) accounts for this.
+  const { fcrd: fcrd_raw, Lcrd } = computeDistortionalBucklingStress(geo, mat);
+  const fcrd = fcrd_raw * distortionalFactor;
   const Mcr_dist = (gross.Sx * fcrd) / 1e6; // kN·m
   const lambdaD = Math.sqrt(My / (Mcr_dist || 1));
 
@@ -287,7 +292,8 @@ export function computeBendingCapacity(
   Mne_distortional = Math.max(Mne_distortional, 0);
 
   // 3. Lateral-torsional buckling
-  const Mo = computeMo(mat, gross, member);
+  // computeMo returns N·mm; convert to kN·m to match My, Mne_local, Mcr_dist
+  const Mo = computeMo(mat, gross, member) / 1e6;
   const Mcr_local = (gross.Sx * fy) / 1e6; // Simplification
 
   let Mne_ltb: number;

@@ -126,8 +126,6 @@ export function computeBuiltUpGrossProperties(
   // Combined moments of inertia using parallel-axis theorem
   let Ix = 0;
   let Iy = 0;
-  let J = 0;
-  let Cw = 0;
 
   elements.forEach((el, i) => {
     const ep = elementProps[i];
@@ -142,11 +140,41 @@ export function computeBuiltUpGrossProperties(
 
     Ix += rotated.Ix + ep.gross.Ag * dy * dy;
     Iy += rotated.Iy + ep.gross.Ag * dx * dx;
-
-    // Torsion and warping are summed (conservative for open sections)
-    J += ep.gross.J;
-    Cw += ep.gross.Cw;
   });
+
+  // Composite torsional properties
+  // Simply summing Cw gives only non-composite warping stiffness.
+  // For connected built-up sections, composite Cw ≈ Iy × h²/4 is
+  // typically 100–400× larger and dramatically improves LTB and
+  // torsional-flexural buckling capacity.
+  const J_sum = elementProps.reduce((s, ep) => s + ep.gross.J, 0);
+  const Cw_sum = elementProps.reduce((s, ep) => s + ep.gross.Cw, 0);
+
+  let J = J_sum;
+  let Cw = Cw_sum;
+
+  if (elements.length > 1) {
+    const d0 = elements[0].geometry.d;
+    const spacingRatio = (elements as BuiltUpElement[])[0]
+      ? 300 / d0  // default fastener spacing estimate
+      : 1.5;
+    const kappa = spacingRatio <= 1.0 ? 0.75 : spacingRatio <= 2.0 ? 0.60 : 0.45;
+
+    // Find bounding box for h_eff
+    let yMinBB = Infinity, yMaxBB = -Infinity;
+    elements.forEach((el, i) => {
+      const r = ((el.rotation % 360) + 360) % 360;
+      const ey = (r === 90 || r === 270) ? el.geometry.bf / 2 : el.geometry.d / 2;
+      const cy = elementCentroids[i].globalY;
+      yMinBB = Math.min(yMinBB, cy - ey);
+      yMaxBB = Math.max(yMaxBB, cy + ey);
+    });
+    const h_eff = Math.max(yMaxBB - yMinBB, 1);
+
+    // Composite Cw for I-like open sections: Cw = Iy × h² / 4
+    const Cw_composite = Iy * h_eff * h_eff / 4;
+    Cw = Cw_sum + kappa * Math.max(Cw_composite - Cw_sum, 0);
+  }
 
   // Find extreme distances for section moduli
   // Approximate using element bounding box

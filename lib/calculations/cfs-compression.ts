@@ -32,7 +32,7 @@ import {
  */
 export function computeCompressionCapacity(
   mat: CFSMaterial,
-  geo: CFSGeometry,
+  _geo: CFSGeometry,
   member: CFSMember,
   gross: GrossSectionProperties,
   effective: EffectiveSectionProperties
@@ -48,28 +48,41 @@ export function computeCompressionCapacity(
   const fox = (Math.PI * Math.PI * E) / Math.pow(Le / (gross.rx || 1), 2);
   const foy = (Math.PI * Math.PI * E) / Math.pow(Le / (gross.ry || 1), 2);
 
-  // Torsional-flexural buckling (simplified – for mono-symmetric C)
-  const { d, bf, radius, t } = geo;
+  // Torsional-flexural buckling (for mono-symmetric C sections)
   const Ag = gross.Ag;
-  const ro = Math.sqrt(gross.rx * gross.rx + gross.ry * gross.ry + gross.xc * gross.xc);
+  const ro2 = gross.rx * gross.rx + gross.ry * gross.ry + gross.xc * gross.xc;
 
   // Elastic torsional buckling stress
   const G = E / (2 * (1 + mat.nu));
   const foz =
-    Ag > 0
-      ? (1 / (Ag * ro * ro)) *
+    Ag > 0 && ro2 > 0
+      ? (1 / (Ag * ro2)) *
         (G * gross.J +
         (Math.PI * Math.PI * E * gross.Cw) / (Le * Le))
       : fox;
 
-  // Governing elastic buckling stress
-  const foc = Math.min(fox, foy);
+  // Flexural-torsional interaction for mono-symmetric C-section
+  // β = 1 − (xo/ro)², where xo is the shear center offset
+  const beta = 1 - (gross.xc * gross.xc) / (ro2 || 1);
+  let foc_ft: number;
+  if (beta > 0 && beta < 1) {
+    const sum = foy + foz;
+    const disc = sum * sum - 4 * beta * foy * foz;
+    foc_ft = disc > 0
+      ? (0.5 / (1 - beta)) * (sum - Math.sqrt(disc))
+      : Math.min(foy, foz);
+  } else {
+    foc_ft = Math.min(foy, foz);
+  }
 
-  // Squash load
-  const Ny = (effective.Ae * fy) / 1e3; // kN
+  // Governing elastic buckling stress (includes torsional-flexural)
+  const foc = Math.min(fox, foc_ft);
 
-  // Elastic buckling load
-  const Noc = (effective.Ae * foc) / 1e3; // kN
+  // Squash load (uses gross area per AS/NZS 4600)
+  const Ny = (Ag * fy) / 1e3; // kN
+
+  // Elastic buckling load (uses gross area)
+  const Noc = (Ag * foc) / 1e3; // kN
 
   // Non-dimensional slenderness
   const lambda_c = Math.sqrt(fy / (foc || 1));
