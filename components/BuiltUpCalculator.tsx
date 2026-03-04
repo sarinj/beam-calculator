@@ -746,17 +746,17 @@ export function BuiltUpCalculator() {
                 <Card>
                   <CardContent className="p-4">
                     <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">
-                      Design Bending Capacity
-                      <span className="text-xs font-normal text-slate-500 ml-2">Cl. 3.3</span>
+                      DSM Bending Capacity
+                      <span className="text-xs font-normal text-slate-500 ml-2">Cl. 7.2.2</span>
                     </h3>
                     <div className="space-y-1">
-                      <ResultRow label="Mn (local)" value={results.bending.Mne_local} unit="kN·m" />
-                      <ResultRow label="Mn (distortional)" value={results.bending.Mne_distortional} unit="kN·m" />
-                      <ResultRow label="Mn (lateral-torsional)" value={results.bending.Mne_ltb} unit="kN·m" />
+                      <ResultRow label="Mbl (local)" value={results.bending.Mne_local} unit="kN·m" />
+                      <ResultRow label="Mbd (distortional)" value={results.bending.Mne_distortional} unit="kN·m" />
+                      <ResultRow label="Mbe (lateral-torsional)" value={results.bending.Mne_ltb} unit="kN·m" />
                       <div className="border-t dark:border-slate-700 my-2" />
                       <ResultRow label="Governing mode" value={results.bending.governingMode} highlight />
-                      <ResultRow label="Mn" value={results.bending.Mn} unit="kN·m" highlight />
-                      <ResultRow label={`ϕMn (ϕ=${results.bending.phi_b})`} value={results.bending.phiMn} unit="kN·m" highlight />
+                      <ResultRow label="Mb" value={results.bending.Mn} unit="kN·m" highlight />
+                      <ResultRow label={`ϕMb (ϕ=${results.bending.phi_b})`} value={results.bending.phiMn} unit="kN·m" highlight />
                     </div>
                   </CardContent>
                 </Card>

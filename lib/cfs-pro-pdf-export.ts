@@ -270,8 +270,8 @@ export function exportCFSProPDF(
     y += 2;
   });
 
-  // ========================= 4. BENDING =========================
-  y = sectionHeader(doc, '4. Bending Capacity', y, 'Cl. 3.3');
+  // ========================= 4. BENDING (DSM) =========================
+  y = sectionHeader(doc, '4. Bending Capacity (DSM)', y, 'Cl. 7.2.2');
   const b = results.bending;
 
   y = equationBlock(doc,
@@ -282,34 +282,42 @@ export function exportCFSProPDF(
     'kN·m', y
   );
 
-  // Local
-  y = sectionHeader(doc, '4.1 Local Buckling (EWM)', y, 'Cl. 3.3.2');
-  y = equationBlock(doc,
-    'Nominal moment (local)',
-    'Mne = Ze × fy',
-    `Mne = ${fmtN(ep.Ze, 0)} × ${mat.fy} / 1e6`,
-    fmtN(b.Mne_local),
-    'kN·m', y
-  );
+  // Buckling stresses
+  y = sectionHeader(doc, '4.1 Buckling Stresses', y);
+  y = resultRow(doc, 'fol (local buckling stress)', fmtN(b.fol, 3), 'MPa', y);
+  y = resultRow(doc, 'fod (distortional buckling stress)', fmtN(b.fod, 3), 'MPa', y);
 
-  // Distortional
-  y = sectionHeader(doc, '4.2 Distortional Buckling (DSM)', y, 'Cl. 3.3.3');
-  y = resultRow(doc, 'Mcr,d (critical)', fmtN(b.Mcr_dist), 'kN·m', y);
-  y = resultRow(doc, 'λd = √(My/Mcr,d)', fmtN(b.lambdaD, 3), '', y);
-  y = resultRow(doc, 'Lcrd (half-wavelength)', fmtN(b.Lcrd, 0), 'mm', y);
-  y = resultRow(doc, 'Mne (distortional)', fmtN(b.Mne_distortional), 'kN·m', y, b.governingMode === 'distortional');
+  // Elastic buckling moments
+  y = sectionHeader(doc, '4.2 Elastic Buckling Moments', y);
+  y = resultRow(doc, 'Mol = Sx × fol', fmtN(b.Mcr_local, 3), 'kN·m', y);
+  y = resultRow(doc, 'Mod = Sx × fod', fmtN(b.Mcr_dist, 3), 'kN·m', y);
+  y = resultRow(doc, 'Mo (flexural-torsional)', isFinite(b.Mo) ? fmtN(b.Mo, 3) : '∞', 'kN·m', y);
 
   // LTB
-  y = sectionHeader(doc, '4.3 Lateral-Torsional Buckling', y, 'Cl. 3.3.3.2');
-  y = resultRow(doc, 'Mo (elastic buckling)', isFinite(b.Mo) ? fmtN(b.Mo) : '∞', 'kN·m', y);
-  y = resultRow(doc, 'Mne (LTB)', fmtN(b.Mne_ltb), 'kN·m', y, b.governingMode === 'lateral-torsional');
+  y = sectionHeader(doc, '4.3 Lateral-Torsional Buckling (Mbe)', y, 'Cl. 7.2.2.2');
+  y = resultRow(doc, 'Mbe', fmtN(b.Mne_ltb, 3), 'kN·m', y, b.governingMode === 'lateral-torsional');
+
+  // Local
+  y = sectionHeader(doc, '4.4 Local Buckling (Mbl)', y, 'Cl. 7.2.2.3');
+  y = resultRow(doc, 'λl = √(Mbe/Mol)', fmtN(b.lambdaL, 3), '', y);
+  y = resultRow(doc, 'Mbl', fmtN(b.Mne_local, 3), 'kN·m', y, b.governingMode === 'local');
+
+  // Distortional
+  y = sectionHeader(doc, '4.5 Distortional Buckling (Mbd)', y, 'Cl. 7.2.2.4');
+  if (b.fod > 0) {
+    y = resultRow(doc, 'λd = √(My/Mod)', fmtN(b.lambdaD, 3), '', y);
+    y = resultRow(doc, 'Lcrd (half-wavelength)', fmtN(b.Lcrd, 0), 'mm', y);
+    y = resultRow(doc, 'Mbd', fmtN(b.Mne_distortional, 3), 'kN·m', y, b.governingMode === 'distortional');
+  } else {
+    y = resultRow(doc, 'fod = 0 → no distortional mode', '—', '', y);
+  }
 
   // Governing
-  y = sectionHeader(doc, '4.4 Governing Bending', y);
-  y = resultRow(doc, `Mn = min(local, dist., LTB) [${b.governingMode}]`, fmtN(b.Mn), 'kN·m', y, true);
-  y = resultRow(doc, 'φb', fmtN(b.phi_b, 2), '', y);
-  y = resultRow(doc, 'φMn', fmtN(b.phiMn), 'kN·m', y, true);
-  y = resultRow(doc, 'M*/φMn', fmtN(params.Mstar / (b.phiMn || 1), 3), '', y, false, params.Mstar <= b.phiMn ? 'ok' : 'ng');
+  y = sectionHeader(doc, '4.6 Governing Bending', y);
+  y = resultRow(doc, `Mb [${b.governingMode}]`, fmtN(b.Mn, 3), 'kN·m', y, true);
+  y = resultRow(doc, 'φ', fmtN(b.phi_b, 2), '', y);
+  y = resultRow(doc, 'φMb', fmtN(b.phiMn, 3), 'kN·m', y, true);
+  y = resultRow(doc, 'M*/φMb', fmtN(params.Mstar / (b.phiMn || 1), 3), '', y, false, params.Mstar <= b.phiMn ? 'ok' : 'ng');
 
   // ========================= 5. SHEAR =========================
   y = sectionHeader(doc, '5. Shear Capacity', y, 'Cl. 3.3.4');

@@ -1,15 +1,17 @@
 // ============================================================
-// CFS Bending Capacity – AS/NZS 4600:2018
+// CFS Bending Capacity – AS/NZS 4600:2018  (DSM approach)
 // ============================================================
-// Computes nominal bending capacity considering:
-//   - Local buckling (EWM) – Cl. 3.3.2
-//   - Distortional buckling (DSM) – Cl. 3.3.3
-//   - Lateral-torsional buckling – Cl. 3.3.3.2
+// Direct Strength Method (DSM) bending design per Cl. 7.2.2:
+//   1. Mbe – Lateral-torsional buckling capacity
+//   2. Mbl – Local buckling capacity (interaction with Mbe)
+//   3. Mbd – Distortional buckling capacity
+//   4. Mb  = min(Mbl, Mbd)  [Mbd excluded when Mod = 0]
 //
 // References:
-//   Cl. 3.3.2   – Nominal section moment capacity
-//   Cl. 3.3.3   – Distortional buckling
-//   Cl. 3.3.3.2 – Lateral-torsional buckling
+//   Cl. 7.2.2.2 – Lateral-torsional buckling (Mbe)
+//   Cl. 7.2.2.3 – Local buckling (Mbl)
+//   Cl. 7.2.2.4 – Distortional buckling (Mbd)
+//   Cl. D2.1.1  – Elastic lateral-torsional buckling moment Mo
 
 import {
   CFSMaterial,
@@ -23,16 +25,18 @@ import {
 } from '@/types/cfs';
 
 // ============================================================
-// ELASTIC LATERAL-TORSIONAL BUCKLING – Cl. 3.3.3.2
+// ELASTIC LATERAL-TORSIONAL BUCKLING – Cl. D2.1.1
 // ============================================================
 
 /**
  * Elastic lateral-torsional buckling moment Mo.
  *
- * Mo = Cb · √(π²EIyGJ / L²  +  π⁴EIyCw / L⁴ · (π²/L²))
+ * For doubly-symmetric and singly-symmetric C/Z sections
+ * bent about the axis of symmetry (AS/NZS 4600 Eq. D2.1.1(1)):
  *
- * Simplified for doubly-symmetric or mono-symmetric C sections:
- * Mo = (Cb · π² · E · Iy / L²) · √(G·J·L²/(π²·E·Iy) + Cw)
+ *   Mo = Cb × √[ (π²EIy / Le²) × (GJ + π²ECw / Le²) ]
+ *
+ * Returns Mo in N·mm.
  */
 function computeMo(
   mat: CFSMaterial,
@@ -49,11 +53,15 @@ function computeMo(
   const Le = Ke * Lb;
 
   const pi2 = Math.PI * Math.PI;
-  const term1 = (pi2 * E * Iy) / (Le * Le);
-  const term2 = (G * J * Le * Le) / (pi2 * E * Iy);
-  const term3 = Cw;
 
-  const Mo = Cb * term1 * Math.sqrt(term2 + term3 / (Iy || 1));
+  // π²EIy / Le²
+  const feyIy = (pi2 * E * Iy) / (Le * Le);
+
+  // GJ + π²ECw / Le²
+  const torsionalTerm = G * J + (pi2 * E * Cw) / (Le * Le);
+
+  // Mo = Cb × √(feyIy × torsionalTerm)
+  const Mo = Cb * Math.sqrt(feyIy * torsionalTerm);
 
   return Math.max(Mo, 0);
 }
@@ -71,14 +79,17 @@ function effectiveLengthFactor(
 }
 
 // ============================================================
-// DISTORTIONAL BUCKLING – Cl. 3.3.3
+// DISTORTIONAL BUCKLING – Cl. 7.2.2.4
 // ============================================================
 
 /**
  * Elastic distortional buckling stress (simplified).
  *
- * Uses Schafer's approximation for C/Z sections:
+ * Uses Schafer's approximation for lipped C/Z sections:
  * fcrd ≈ β₁ · [(E·t³)/(12(1−ν²)·bf²)] · [1 + β₂·(bf/d)² + β₃·(lip/bf)²]
+ *
+ * For unlipped sections, distortional buckling does not occur as a
+ * distinct mode – returns fcrd = 0 (matching THIN-WALL-2 / CUFSM).
  *
  * For design, the user can also supply fcrd directly.
  */
@@ -91,6 +102,12 @@ function computeDistortionalBucklingStress(
 
   const flatFlange = bf - 2 * (radius + t);
   const flatLip = lipLength > 0 ? lipLength - (radius + t / 2) : 0;
+
+  // No lip → no distortional buckling (the flange is unstiffened;
+  // local plate buckling governs instead).
+  if (flatLip <= 0) {
+    return { fcrd: 0, Lcrd: 0 };
+  }
 
   // Plate flexural rigidity
   const D = (E * Math.pow(t, 3)) / (12 * (1 - nu * nu));
@@ -109,24 +126,53 @@ function computeDistortionalBucklingStress(
   // Critical half-wavelength
   const Lcrd = 4.8 * Math.pow((d * bfTerm * bfTerm) / t, 0.25);
 
-  return { fcrd: Math.max(fcrd, 1), Lcrd };
+  return { fcrd: Math.max(fcrd, 0), Lcrd };
 }
 
 // ============================================================
-// LOCAL BUCKLING – Cl. 3.3.2
+// ELASTIC LOCAL BUCKLING STRESS – for DSM
 // ============================================================
 
 /**
- * Local buckling moment capacity using EWM results.
+ * Compute the elastic local buckling stress fol.
  *
- * Mne_local = Ze · fy   (Cl. 3.3.2)
- * where Ze is the effective section modulus from EWM.
+ * This uses simplified plate buckling: the minimum critical stress
+ * from the constituent elements (flanges & web) under their
+ * respective stress distributions.
+ *
+ * For flanges in uniform compression:
+ *   fcr = k × π²D / (b² × t),  k = 4.0 (stiffened) or 0.43 (unstiffened)
+ *
+ * For web in bending gradient (ψ = −1):
+ *   fcr = k × π²D / (hw² × t),  k ≈ 23.9
+ *
+ * fol = min(fcr_flange, fcr_web)  (the local mode is governed by the
+ *       weakest plate element reaching its critical stress first)
  */
-function computeLocalBucklingMoment(
-  fy: number,
-  effectiveProps: EffectiveSectionProperties
+function computeLocalBucklingStress(
+  geo: CFSGeometry,
+  mat: CFSMaterial
 ): number {
-  return (effectiveProps.Ze * fy) / 1e6; // kN·m
+  const { t, d, bf, lipLength, radius } = geo;
+  const { E, nu } = mat;
+
+  const pi2 = Math.PI * Math.PI;
+  const D = (E * Math.pow(t, 3)) / (12 * (1 - nu * nu));
+
+  const flatWeb = Math.max(d - 2 * (radius + t), 1);
+  const flatFlange = Math.max(bf - 2 * (radius + t), 1);
+  const flatLip = lipLength > 0 ? Math.max(lipLength - (radius + t / 2), 0) : 0;
+
+  // Flange buckling coefficient: stiffened (lipped) vs unstiffened
+  const kFlange = flatLip > 0 ? 4.0 : 0.43;
+  const fcrFlange = kFlange * pi2 * D / (flatFlange * flatFlange * t);
+
+  // Web under bending gradient (ψ = −1): k ≈ 23.9
+  const kWeb = 23.9;
+  const fcrWeb = kWeb * pi2 * D / (flatWeb * flatWeb * t);
+
+  // fol is the minimum of all element critical stresses
+  return Math.min(fcrFlange, fcrWeb);
 }
 
 // ============================================================
@@ -243,16 +289,17 @@ function generateSignatureCurve(
 }
 
 // ============================================================
-// MAIN BENDING CAPACITY – Cl. 3.3
+// MAIN BENDING CAPACITY – DSM per Cl. 7.2.2
 // ============================================================
 
 /**
- * Compute nominal bending capacity per AS/NZS 4600:2018.
+ * Compute nominal bending capacity per AS/NZS 4600:2018 DSM.
  *
- * Returns the governing capacity from:
- *   1. Local buckling (EWM)   – Cl. 3.3.2
- *   2. Distortional buckling  – Cl. 3.3.3
- *   3. Lateral-torsional      – Cl. 3.3.3.2
+ * DSM Design Flow:
+ *   Step 1: Mbe – lateral-torsional buckling capacity (Cl. 7.2.2.2)
+ *   Step 2: Mbl – local buckling capacity with LTB interaction (Cl. 7.2.2.3)
+ *   Step 3: Mbd – distortional buckling capacity (Cl. 7.2.2.4)
+ *   Step 4: Mb  = min(Mbl, Mbd)  [Mbd excluded when fod = 0]
  */
 export function computeBendingCapacity(
   mat: CFSMaterial,
@@ -265,76 +312,145 @@ export function computeBendingCapacity(
   const { fy } = mat;
   const phi_b = 0.90; // AS/NZS 4600 capacity reduction factor for bending
 
-  // Yield moment
+  // ── Yield moment ──
   const My = (gross.Sx * fy) / 1e6; // kN·m
 
-  // 1. Local buckling (EWM)
-  const Mne_local = computeLocalBucklingMoment(fy, effective);
+  // ── Elastic buckling stresses ──
 
-  // 2. Distortional buckling
+  // Local buckling stress fol
+  const fol = computeLocalBucklingStress(geo, mat);
+
+  // Distortional buckling stress fod
   // For multi-member assemblies, the connected webs provide additional
   // rotational restraint at the flange-web junction, increasing fcrd.
   // The distortionalFactor (typically √n for n members) accounts for this.
   const { fcrd: fcrd_raw, Lcrd } = computeDistortionalBucklingStress(geo, mat);
-  const fcrd = fcrd_raw * distortionalFactor;
-  const Mcr_dist = (gross.Sx * fcrd) / 1e6; // kN·m
-  const lambdaD = Math.sqrt(My / (Mcr_dist || 1));
+  const fod = fcrd_raw * distortionalFactor;
 
-  let Mne_distortional: number;
-  if (lambdaD <= 0.673) {
-    Mne_distortional = My;
-  } else {
-    Mne_distortional =
-      (1 - 0.22 * Math.pow(Mcr_dist / My, 0.5)) *
-      Math.pow(Mcr_dist / My, 0.5) *
-      My;
-  }
-  Mne_distortional = Math.max(Mne_distortional, 0);
+  // ── Elastic buckling moments ──
+  // Mol = Sf × fol  (elastic local buckling moment)
+  const Mol = (gross.Sx * fol) / 1e6; // kN·m
 
-  // 3. Lateral-torsional buckling
-  // computeMo returns N·mm; convert to kN·m to match My, Mne_local, Mcr_dist
-  const Mo = computeMo(mat, gross, member) / 1e6;
-  const Mcr_local = (gross.Sx * fy) / 1e6; // Simplification
+  // Mod = Sf × fod  (elastic distortional buckling moment)
+  const Mod = fod > 0 ? (gross.Sx * fod) / 1e6 : 0; // kN·m
 
-  let Mne_ltb: number;
+  // Mo  = elastic lateral-torsional buckling moment
+  // computeMo returns N·mm
+  const Mo = computeMo(mat, gross, member) / 1e6; // kN·m
+
+  // ================================================================
+  // Step 1: Mbe – Lateral-torsional buckling (Cl. 7.2.2.2)
+  // ================================================================
+  let Mbe: number;
   if (Mo >= 2.78 * My) {
-    // Full yield
-    Mne_ltb = My;
+    // Full yield – laterally braced
+    Mbe = My;
   } else if (Mo > 0.56 * My) {
-    // Inelastic
-    Mne_ltb = (10 / 9) * My * (1 - (10 * My) / (36 * Mo));
+    // Inelastic LTB
+    Mbe = (10 / 9) * My * (1 - (10 * My) / (36 * Mo));
   } else {
-    // Elastic
-    Mne_ltb = Mo;
+    // Elastic LTB
+    Mbe = Mo;
   }
-  Mne_ltb = Math.max(Mne_ltb, 0);
+  Mbe = Math.max(Mbe, 0);
 
-  // Governing moment
-  const Mn = Math.min(Mne_local, Mne_distortional, Mne_ltb);
+  // ================================================================
+  // Step 2: Mbl – Local buckling with LTB interaction (Cl. 7.2.2.3)
+  // ================================================================
+  //   λl = √(Mbe / Mol)
+  //   λl ≤ 0.776 :  Mbl = Mbe
+  //   λl > 0.776 :  Mbl = [1 − 0.15(Mol/Mbe)^0.4] × (Mol/Mbe)^0.4 × Mbe
+  let Mbl: number;
+  let lambdaL: number;
+
+  if (Mol <= 0 || !isFinite(Mol)) {
+    // No local buckling (e.g. very stocky section) → Mbl = Mbe
+    Mbl = Mbe;
+    lambdaL = 0;
+  } else {
+    lambdaL = Math.sqrt(Mbe / Mol);
+
+    if (lambdaL <= 0.776) {
+      Mbl = Mbe;
+    } else {
+      const ratio = Mol / Mbe; // Mol/Mbe (< 1 since λl > 0.776)
+      Mbl = (1 - 0.15 * Math.pow(ratio, 0.4)) * Math.pow(ratio, 0.4) * Mbe;
+    }
+  }
+  Mbl = Math.max(Mbl, 0);
+
+  // ================================================================
+  // Step 3: Mbd – Distortional buckling (Cl. 7.2.2.4)
+  // ================================================================
+  //   λd = √(My / Mod)
+  //   λd ≤ 0.673 :  Mbd = My
+  //   λd > 0.673 :  Mbd = [1 − 0.22(Mod/My)^0.5] × (Mod/My)^0.5 × My
+  //
+  // If fod = 0 (no distortional mode), Mbd is excluded from governing check.
+  let Mbd: number;
+  let lambdaD: number;
+
+  if (fod <= 0 || Mod <= 0) {
+    // No distortional buckling mode
+    Mbd = 0;
+    lambdaD = 0;
+  } else {
+    lambdaD = Math.sqrt(My / Mod);
+
+    if (lambdaD <= 0.673) {
+      Mbd = My;
+    } else {
+      const ratio = Mod / My;
+      Mbd = (1 - 0.22 * Math.pow(ratio, 0.5)) * Math.pow(ratio, 0.5) * My;
+    }
+    Mbd = Math.max(Mbd, 0);
+  }
+
+  // ================================================================
+  // Step 4: Mb = min(Mbl, Mbd), excluding Mbd if fod = 0
+  // ================================================================
+  let Mn: number;
+  let governingMode: BucklingMode;
+
+  if (Mbd > 0) {
+    // Both local and distortional modes exist
+    Mn = Math.min(Mbl, Mbd);
+    governingMode = Mn === Mbd ? 'distortional' : 'local';
+  } else {
+    // Only local (+LTB) mode
+    Mn = Mbl;
+    governingMode = 'local';
+  }
+
+  // Check if LTB alone governs (Mbe < Mbl, and Mbe can be the limit)
+  // In DSM, Mbl is already ≤ Mbe, so if Mbl = Mbe it means local
+  // buckling didn't reduce capacity and LTB is the actual governing mode.
+  if (Mbl >= Mbe - 1e-10 && (Mbd <= 0 || Mbe <= Mbd)) {
+    governingMode = 'lateral-torsional';
+  }
+
   const phiMn = phi_b * Mn;
-
-  // Determine governing mode
-  let governingMode: BucklingMode = 'local';
-  if (Mn === Mne_distortional) governingMode = 'distortional';
-  if (Mn === Mne_ltb) governingMode = 'lateral-torsional';
 
   // Signature curve
   const signatureCurve = generateSignatureCurve(geo, mat, gross);
 
   return {
-    Mne_local,
-    Mne_distortional,
-    Mne_ltb,
-    Mn,
-    phiMn,
+    Mne_local: Mbl,            // Mbl – DSM local buckling capacity
+    Mne_distortional: Mbd,     // Mbd – DSM distortional capacity
+    Mne_ltb: Mbe,              // Mbe – DSM LTB capacity
+    Mn,                        // Mb  – governing nominal capacity
+    phiMn,                     // φMb – design capacity
     phi_b,
     governingMode,
-    Mcr_local,
-    Mcr_dist,
-    Mo,
-    My,
-    Lcrd,
-    lambdaD,
+    fol,                       // Elastic local buckling stress (MPa)
+    fod,                       // Elastic distortional buckling stress (MPa)
+    Mcr_local: Mol,            // Mol – elastic local buckling moment
+    Mcr_dist: Mod,             // Mod – elastic distortional buckling moment
+    Mo,                        // Mo  – elastic LTB moment
+    My,                        // My  – yield moment
+    lambdaL,                   // Local slenderness √(Mbe/Mol)
+    lambdaD,                   // Distortional slenderness √(My/Mod)
+    Lcrd,                      // Critical distortional half-wavelength
     signatureCurve,
   };
 }

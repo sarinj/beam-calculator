@@ -121,40 +121,53 @@ Effective properties:
   Ze  = ${(effectiveProps.Ze / 1e3).toFixed(2)} × 10³ mm³`}
         </StepSection>
 
-        {/* Step 5: Bending capacity */}
-        <StepSection title="Step 5: Bending Capacity" clause="Cl. 3.3.2–3.3.4">
+        {/* Step 5: Bending capacity – DSM */}
+        <StepSection title="Step 5: Bending Capacity (DSM)" clause="Cl. 7.2.2">
           {`My = Sx × fy = ${(grossProps.Sx / 1e3).toFixed(2)}×10³ × ${fy} = ${bending.My.toFixed(2)} kN·m
 
-(a) LOCAL BUCKLING [Cl. 3.3.2]:
-  Mne_local = Ze × fy = ${(effectiveProps.Ze / 1e3).toFixed(2)}×10³ × ${fy}
-            = ${bending.Mne_local.toFixed(2)} kN·m
+BUCKLING STRESSES:
+  fol = ${bending.fol.toFixed(3)} MPa (elastic local buckling)
+  fod = ${bending.fod.toFixed(3)} MPa (elastic distortional buckling)
 
-(b) DISTORTIONAL BUCKLING [Cl. 3.3.4]:
-  Lcrd = 4.5·√(d·bf)·(t/bf)^0.25 = ${bending.Lcrd.toFixed(0)} mm
-  Mcrd = ${bending.Mcr_dist.toFixed(2)} kN·m (elastic distortional)
-  λd = √(My/Mcrd) = ${bending.lambdaD.toFixed(3)}
-  ${bending.lambdaD <= 0.673
-    ? `λd ≤ 0.673 → Mne_dist = My = ${bending.Mne_distortional.toFixed(2)} kN·m`
-    : `λd > 0.673 → Mne_dist = [1-0.22·(Mcrd/My)^0.5]·(Mcrd/My)^0.5·My = ${bending.Mne_distortional.toFixed(2)} kN·m`
-  }
+ELASTIC BUCKLING MOMENTS:
+  Mol = Sx × fol = ${bending.Mcr_local.toFixed(3)} kN·m
+  Mod = Sx × fod = ${bending.Mcr_dist.toFixed(3)} kN·m
 
-(c) LATERAL-TORSIONAL BUCKLING [Cl. 3.3.3]:
+(a) LATERAL-TORSIONAL BUCKLING [Cl. 7.2.2.2]:
   Cb = ${member.Cb.toFixed(2)} (moment gradient factor)
   Le = Ke × Lb = ${Ke} × ${member.Lb} = ${(Ke * member.Lb).toFixed(0)} mm
-  Mo = Cb·(π/Le)·√(E·Iy·G·J + (π·E/Le)²·Iy·Cw)
-     = ${bending.Mo.toFixed(2)} kN·m
+  Mo = Cb × √[(π²EIy/Le²)(GJ + π²ECw/Le²)]
+     = ${isFinite(bending.Mo) ? bending.Mo.toFixed(3) : '∞'} kN·m
   ${bending.Mo >= 2.78 * bending.My
-    ? `Mo ≥ 2.78·My → Yielding: Mc = My`
+    ? `Mo ≥ 2.78·My → Mbe = My (yielding)`
     : bending.Mo > 0.56 * bending.My
-    ? `0.56·My < Mo < 2.78·My → Inelastic LTB`
-    : `Mo ≤ 0.56·My → Elastic LTB: Mc = Mo`
+    ? `0.56·My < Mo < 2.78·My → Mbe = (10/9)·My·(1 − 10My/(36Mo)) (inelastic)`
+    : `Mo ≤ 0.56·My → Mbe = Mo (elastic LTB)`
   }
-  Mne_ltb = ${bending.Mne_ltb.toFixed(2)} kN·m
+  Mbe = ${bending.Mne_ltb.toFixed(3)} kN·m
+
+(b) LOCAL BUCKLING [Cl. 7.2.2.3]:
+  λl = √(Mbe/Mol) = ${bending.lambdaL.toFixed(3)}
+  ${bending.lambdaL <= 0.776
+    ? `λl ≤ 0.776 → Mbl = Mbe = ${bending.Mne_local.toFixed(3)} kN·m`
+    : `λl > 0.776 → Mbl = [1−0.15(Mol/Mbe)^0.4]·(Mol/Mbe)^0.4·Mbe = ${bending.Mne_local.toFixed(3)} kN·m`
+  }
+
+(c) DISTORTIONAL BUCKLING [Cl. 7.2.2.4]:
+  ${bending.fod > 0
+    ? `Lcrd = ${bending.Lcrd.toFixed(0)} mm
+  λd = √(My/Mod) = ${bending.lambdaD.toFixed(3)}
+  ${bending.lambdaD <= 0.673
+    ? `λd ≤ 0.673 → Mbd = My = ${bending.Mne_distortional.toFixed(3)} kN·m`
+    : `λd > 0.673 → Mbd = [1−0.22(Mod/My)^0.5]·(Mod/My)^0.5·My = ${bending.Mne_distortional.toFixed(3)} kN·m`
+  }`
+    : `fod = 0 → No distinct distortional mode (Mbd excluded from governing check)`
+  }
 
 GOVERNING MODE: ${bending.governingMode.toUpperCase()}
-  Mn  = ${bending.Mn.toFixed(2)} kN·m
-  ϕb  = ${bending.phi_b}
-  ϕMn = ${bending.phiMn.toFixed(2)} kN·m`}
+  Mb  = ${bending.fod > 0 ? `min(Mbl, Mbd) = min(${bending.Mne_local.toFixed(3)}, ${bending.Mne_distortional.toFixed(3)})` : `Mbl`} = ${bending.Mn.toFixed(3)} kN·m
+  φ   = ${bending.phi_b}
+  φMb = ${bending.phiMn.toFixed(3)} kN·m`}
         </StepSection>
 
         {/* Step 6: Shear */}

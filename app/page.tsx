@@ -84,6 +84,27 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-3xl mx-auto">
             <Link
+              href="/simple-cfs"
+              className="group relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 transition-all hover:border-teal-400 dark:hover:border-teal-500 hover:shadow-lg"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white font-bold text-xs">
+                  DSM
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-800 dark:text-slate-100 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                    Simple CFS
+                  </h3>
+                  <span className="text-[10px] bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded-full">
+                    AS/NZS 4600:2018 · DSM Only
+                  </span>
+                </div>
+              </div>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                DSM flexural capacity of a single C-section (lipped/unlipped). Step-by-step calculation with signature curve.
+              </p>
+            </Link>
+            <Link
               href="/cfs-pro"
               className="group relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 transition-all hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-lg"
             >

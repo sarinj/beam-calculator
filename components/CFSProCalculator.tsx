@@ -1175,13 +1175,13 @@ export function CFSProCalculator() {
                     <ResultRow label="xs" value={results.sectionProps.shearCenter.xs} unit="mm" />
                     <ResultRow label="ys" value={results.sectionProps.shearCenter.ys} unit="mm" />
 
-                    <SectionHeader clause="Cl. 3.3">Capacity Summary</SectionHeader>
+                    <SectionHeader clause="Cl. 7.2.2">Capacity Summary</SectionHeader>
                     <ResultRow label="My (yield)" value={results.bending.My} unit="kN·m" />
-                    <ResultRow label="Mn (local)" value={results.bending.Mne_local} unit="kN·m" />
-                    <ResultRow label="Mn (distortional)" value={results.bending.Mne_distortional} unit="kN·m" />
-                    <ResultRow label="Mn (LTB)" value={results.bending.Mne_ltb} unit="kN·m" />
-                    <ResultRow label="Mn (governing)" value={results.bending.Mn} unit="kN·m" highlight />
-                    <ResultRow label="φMn" value={results.bending.phiMn} unit="kN·m" highlight />
+                    <ResultRow label="Mbl (local)" value={results.bending.Mne_local} unit="kN·m" />
+                    <ResultRow label="Mbd (distortional)" value={results.bending.Mne_distortional} unit="kN·m" />
+                    <ResultRow label="Mbe (LTB)" value={results.bending.Mne_ltb} unit="kN·m" />
+                    <ResultRow label="Mb (governing)" value={results.bending.Mn} unit="kN·m" highlight />
+                    <ResultRow label="φMb" value={results.bending.phiMn} unit="kN·m" highlight />
                     <ResultRow label="Vn" value={results.shear.Vn} unit="kN" />
                     <ResultRow label="φVn" value={results.shear.phiVn} unit="kN" highlight />
                     <ResultRow label="Nc" value={results.compression.Nc} unit="kN" />
@@ -1222,7 +1222,7 @@ export function CFSProCalculator() {
                 {/* ── BENDING TAB ── */}
                 {resultTab === 'bending' && (
                   <div className="space-y-1">
-                    <SectionHeader clause="Cl. 3.3">Bending Capacity Breakdown</SectionHeader>
+                    <SectionHeader clause="Cl. 7.2.2">DSM Bending Capacity</SectionHeader>
 
                     <div className="flex gap-1 mb-2">
                       <ModeTag mode="local" governing={results.bending.governingMode === 'local'} />
@@ -1230,30 +1230,58 @@ export function CFSProCalculator() {
                       <ModeTag mode="lateral-torsional" governing={results.bending.governingMode === 'lateral-torsional'} />
                     </div>
 
-                    <ResultRow label="My" value={results.bending.My} unit="kN·m" clause="Cl. 3.3.2" />
+                    <ResultRow label="My" value={results.bending.My} unit="kN·m" clause="Yield moment" />
 
-                    <SectionHeader clause="Cl. 3.3.2">Local Buckling (EWM)</SectionHeader>
-                    <ResultRow label="Mne (local)" value={results.bending.Mne_local} unit="kN·m"
-                      highlight={results.bending.governingMode === 'local'} />
+                    <SectionHeader>Buckling Stresses</SectionHeader>
+                    <ResultRow label="fol (local)" value={results.bending.fol} unit="MPa" />
+                    <ResultRow label="fod (distortional)" value={results.bending.fod} unit="MPa" />
 
-                    <SectionHeader clause="Cl. 3.3.3">Distortional Buckling (DSM)</SectionHeader>
-                    <ResultRow label="Mcr,d" value={results.bending.Mcr_dist} unit="kN·m" />
-                    <ResultRow label="λd" value={results.bending.lambdaD} />
-                    <ResultRow label="Lcrd" value={results.bending.Lcrd} unit="mm" />
-                    <ResultRow label="Mne (dist.)" value={results.bending.Mne_distortional} unit="kN·m"
-                      highlight={results.bending.governingMode === 'distortional'} />
-
-                    <SectionHeader clause="Cl. 3.3.3.2">Lateral-Torsional Buckling</SectionHeader>
+                    <SectionHeader>Elastic Buckling Moments</SectionHeader>
+                    <ResultRow label="Mol" value={results.bending.Mcr_local} unit="kN·m" />
+                    <ResultRow label="Mod" value={results.bending.Mcr_dist} unit="kN·m" />
                     <ResultRow label="Mo" value={isFinite(results.bending.Mo) ? results.bending.Mo : '∞'} unit="kN·m" />
-                    <ResultRow label="Mne (LTB)" value={results.bending.Mne_ltb} unit="kN·m"
-                      highlight={results.bending.governingMode === 'lateral-torsional'} />
 
-                    <SectionHeader>Governing</SectionHeader>
-                    <ResultRow label="Mn" value={results.bending.Mn} unit="kN·m" highlight />
-                    <ResultRow label="φb" value={results.bending.phi_b} />
-                    <ResultRow label="φMn" value={results.bending.phiMn} unit="kN·m" highlight
+                    <SectionHeader clause="Cl. 7.2.2.2">Lateral-Torsional Buckling</SectionHeader>
+                    <ResultRow label="Mbe" value={results.bending.Mne_ltb} unit="kN·m"
+                      highlight={results.bending.governingMode === 'lateral-torsional'} />
+                    <div className="p-1.5 bg-slate-50 dark:bg-slate-700 rounded text-[9px] text-slate-500 dark:text-slate-400">
+                      {results.bending.Mo >= 2.78 * results.bending.My
+                        ? 'Mo ≥ 2.78My → Mbe = My (full yield)'
+                        : results.bending.Mo > 0.56 * results.bending.My
+                        ? '0.56My < Mo < 2.78My → inelastic LTB'
+                        : 'Mo ≤ 0.56My → Mbe = Mo (elastic LTB)'}
+                    </div>
+
+                    <SectionHeader clause="Cl. 7.2.2.3">Local Buckling (DSM)</SectionHeader>
+                    <ResultRow label="λl = √(Mbe/Mol)" value={results.bending.lambdaL} />
+                    <ResultRow label="Mbl" value={results.bending.Mne_local} unit="kN·m"
+                      highlight={results.bending.governingMode === 'local'} />
+                    <div className="p-1.5 bg-slate-50 dark:bg-slate-700 rounded text-[9px] text-slate-500 dark:text-slate-400">
+                      {results.bending.lambdaL <= 0.776
+                        ? 'λl ≤ 0.776 → Mbl = Mbe (no local reduction)'
+                        : 'λl > 0.776 → Mbl = [1−0.15(Mol/Mbe)⁰·⁴]×(Mol/Mbe)⁰·⁴×Mbe'}
+                    </div>
+
+                    <SectionHeader clause="Cl. 7.2.2.4">Distortional Buckling (DSM)</SectionHeader>
+                    {results.bending.fod > 0 ? (
+                      <>
+                        <ResultRow label="λd = √(My/Mod)" value={results.bending.lambdaD} />
+                        <ResultRow label="Lcrd" value={results.bending.Lcrd} unit="mm" />
+                        <ResultRow label="Mbd" value={results.bending.Mne_distortional} unit="kN·m"
+                          highlight={results.bending.governingMode === 'distortional'} />
+                      </>
+                    ) : (
+                      <div className="p-1.5 bg-slate-50 dark:bg-slate-700 rounded text-[9px] text-slate-500 dark:text-slate-400">
+                        fod = 0 → No distinct distortional mode (Mbd excluded)
+                      </div>
+                    )}
+
+                    <SectionHeader>Governing Capacity</SectionHeader>
+                    <ResultRow label="Mb" value={results.bending.Mn} unit="kN·m" highlight />
+                    <ResultRow label="φ" value={results.bending.phi_b} />
+                    <ResultRow label="φMb" value={results.bending.phiMn} unit="kN·m" highlight
                       status={params.Mstar <= results.bending.phiMn ? 'ok' : 'ng'} />
-                    <ResultRow label="M*/φMn" value={(params.Mstar / (results.bending.phiMn || 1))}
+                    <ResultRow label="M*/φMb" value={(params.Mstar / (results.bending.phiMn || 1))}
                       status={params.Mstar <= results.bending.phiMn ? 'ok' : 'ng'} />
                   </div>
                 )}
@@ -1469,29 +1497,40 @@ Cw  = ${results.sectionProps.gross.Cw.toFixed(0)} mm⁶`}
 
                     {/* Step 5: Bending */}
                     <CollapsibleStep
-                      title="Step 5: Bending Capacity"
-                      clause="Cl. 3.3"
+                      title="Step 5: Bending Capacity (DSM)"
+                      clause="Cl. 7.2.2"
                       expanded={expandedStep === 'bending'}
                       onToggle={() => setExpandedStep(expandedStep === 'bending' ? null : 'bending')}
                     >
                       {`My = Sx·fy = ${results.bending.My.toFixed(2)} kN·m
 
-Local (EWM) – Cl. 3.3.2:
-  Mne = Ze·fy = ${results.bending.Mne_local.toFixed(2)} kN·m
+Buckling stresses:
+  fol = ${results.bending.fol.toFixed(3)} MPa (local)
+  fod = ${results.bending.fod.toFixed(3)} MPa (distortional)
 
-Distortional (DSM) – Cl. 3.3.3:
-  Mcr,d = ${results.bending.Mcr_dist.toFixed(2)} kN·m
-  λd = √(My/Mcr,d) = ${results.bending.lambdaD.toFixed(3)}
+Elastic buckling moments:
+  Mol = Sx·fol = ${results.bending.Mcr_local.toFixed(3)} kN·m
+  Mod = Sx·fod = ${results.bending.Mcr_dist.toFixed(3)} kN·m
+  Mo = ${isFinite(results.bending.Mo) ? results.bending.Mo.toFixed(3) : '∞'} kN·m
+
+Step 1 – LTB (Cl. 7.2.2.2):
+  Mo = ${isFinite(results.bending.Mo) ? results.bending.Mo.toFixed(3) : '∞'} kN·m
+  ${results.bending.Mo >= 2.78 * results.bending.My ? 'Mo ≥ 2.78My → Mbe = My' : results.bending.Mo > 0.56 * results.bending.My ? '0.56My < Mo < 2.78My → inelastic' : 'Mo ≤ 0.56My → Mbe = Mo (elastic)'}
+  Mbe = ${results.bending.Mne_ltb.toFixed(3)} kN·m
+
+Step 2 – Local buckling (Cl. 7.2.2.3):
+  λl = √(Mbe/Mol) = ${results.bending.lambdaL.toFixed(3)}
+  ${results.bending.lambdaL <= 0.776 ? 'λl ≤ 0.776 → Mbl = Mbe' : 'λl > 0.776 → Mbl = [1−0.15(Mol/Mbe)⁰·⁴]×(Mol/Mbe)⁰·⁴×Mbe'}
+  Mbl = ${results.bending.Mne_local.toFixed(3)} kN·m
+
+Step 3 – Distortional buckling (Cl. 7.2.2.4):
+  ${results.bending.fod > 0 ? `λd = √(My/Mod) = ${results.bending.lambdaD.toFixed(3)}
   Lcrd = ${results.bending.Lcrd.toFixed(0)} mm
-  Mne = ${results.bending.Mne_distortional.toFixed(2)} kN·m
+  Mbd = ${results.bending.Mne_distortional.toFixed(3)} kN·m` : 'fod = 0 → no distortional mode (Mbd excluded)'}
 
-LTB – Cl. 3.3.3.2:
-  Mo = ${isFinite(results.bending.Mo) ? results.bending.Mo.toFixed(2) : '∞'} kN·m
-  Mne = ${results.bending.Mne_ltb.toFixed(2)} kN·m
-
-Governing: Mn = min(${results.bending.Mne_local.toFixed(2)}, ${results.bending.Mne_distortional.toFixed(2)}, ${results.bending.Mne_ltb.toFixed(2)})
-         = ${results.bending.Mn.toFixed(2)} kN·m  [${results.bending.governingMode}]
-φMn = ${results.bending.phi_b} × ${results.bending.Mn.toFixed(2)} = ${results.bending.phiMn.toFixed(2)} kN·m`}
+Governing: Mb = ${results.bending.fod > 0 ? `min(Mbl, Mbd) = min(${results.bending.Mne_local.toFixed(3)}, ${results.bending.Mne_distortional.toFixed(3)})` : `Mbl = ${results.bending.Mne_local.toFixed(3)}`}
+         = ${results.bending.Mn.toFixed(3)} kN·m  [${results.bending.governingMode}]
+φMb = ${results.bending.phi_b} × ${results.bending.Mn.toFixed(3)} = ${results.bending.phiMn.toFixed(3)} kN·m`}
                     </CollapsibleStep>
 
                     {/* Step 6: Shear */}
