@@ -94,19 +94,28 @@ export interface SignatureCurvePoint {
 
 // --- Bending Result ---
 export interface BendingResult {
-  Mne_local: number;         // Nominal moment (local buckling) (kN·m)
-  Mne_distortional: number;  // Nominal moment (distortional buckling) (kN·m)
-  Mne_ltb: number;           // Nominal moment (lateral-torsional) (kN·m)
-  Mn: number;                // Governing nominal moment (kN·m)
-  phiMn: number;             // Design moment capacity (kN·m)
-  phi_b: number;             // Capacity reduction factor for bending
+  // DSM capacities (AS/NZS 4600:2018 Cl. 7.2.2)
+  Mne_local: number;         // Mbl – nominal moment capacity for local buckling (kN·m)
+  Mne_distortional: number;  // Mbd – nominal moment capacity for distortional buckling (kN·m)
+  Mne_ltb: number;           // Mbe – nominal moment capacity for lateral-torsional buckling (kN·m)
+  Mn: number;                // Mb – governing nominal moment (kN·m)
+  phiMn: number;             // φMb – design moment capacity (kN·m)
+  phi_b: number;             // φ – capacity reduction factor for bending
   governingMode: BucklingMode;
-  Mcr_local: number;         // Elastic local buckling moment (kN·m)
-  Mcr_dist: number;          // Elastic distortional buckling moment (kN·m)
-  Mo: number;                // Elastic lateral-torsional buckling moment (kN·m)
-  My: number;                // Yield moment (kN·m)
+
+  // Elastic buckling values
+  fol: number;               // Elastic local buckling stress (MPa)
+  fod: number;               // Elastic distortional buckling stress (MPa)
+  Mcr_local: number;         // Mol – elastic local buckling moment (kN·m)
+  Mcr_dist: number;          // Mod – elastic distortional buckling moment (kN·m)
+  Mo: number;                // Mo – elastic lateral-torsional buckling moment (kN·m)
+  My: number;                // My – yield moment (kN·m)
+
+  // Slenderness
+  lambdaL: number;           // Local slenderness √(Mbe/Mol)
+  lambdaD: number;           // Distortional slenderness √(My/Mod)
   Lcrd: number;              // Critical distortional half-wavelength (mm)
-  lambdaD: number;           // Distortional slenderness
+
   signatureCurve: SignatureCurvePoint[];  // For visualization
 }
 
