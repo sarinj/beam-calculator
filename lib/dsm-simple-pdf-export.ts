@@ -7,7 +7,7 @@ import type {
 } from '@/lib/calculations/dsm-simple';
 
 // ============================================================
-//  SIMPLE CFS – DSM CALCULATION REPORT (PDF)
+//  SIMPLE CFS – Section 3.3 EWM CALCULATION REPORT (PDF)
 //  AS/NZS 4600:2018
 // ============================================================
 // Professional A4 engineering calculation document.
@@ -292,7 +292,7 @@ export function exportSimpleCFSPdf(
   doc.setFontSize(13);
   doc.setFont(FONT, 'normal');
   doc.setTextColor(60, 60, 60);
-  doc.text('Direct Strength Method (DSM) — Flexural & Shear Capacity', MARGIN, y);
+  doc.text('Effective Width Method (EWM) — Section 3.3 Bending & Shear Capacity', MARGIN, y);
   y += 7;
 
   doc.setFontSize(10);
@@ -310,7 +310,7 @@ export function exportSimpleCFSPdf(
   doc.setTextColor(80, 80, 80);
   doc.text('Design Standard:  AS/NZS 4600:2018 (Cold-Formed Steel Structures)', MARGIN, y);
   y += 6;
-  doc.text('Method:           Direct Strength Method (DSM) per Cl. 7.2.2', MARGIN, y);
+  doc.text('Method:           Effective Width Method (EWM) per Section 3.3', MARGIN, y);
   y += 6;
   doc.text('Shear:            Cl. 3.3.4 Web Shear Capacity', MARGIN, y);
   y += 6;
@@ -335,9 +335,9 @@ export function exportSimpleCFSPdf(
     : cap.governingMode === 'local' ? 'Local Buckling'
     : 'Distortional Buckling';
   const shearModeLabel = shear
-    ? (shear.shearMode === 'yielding' ? 'Shear Yielding'
-      : shear.shearMode === 'inelastic-buckling' ? 'Inelastic Shear Buckling'
-      : 'Elastic Shear Buckling')
+    ? (shear.shearMode === 'Eq.3.3.4(1)' ? 'Eq. 3.3.4(1)'
+      : shear.shearMode === 'Eq.3.3.4(2)' ? 'Eq. 3.3.4(2)'
+      : 'Eq. 3.3.4(3)')
     : 'N/A';
 
   y = boxedResult(doc, [
@@ -356,7 +356,7 @@ export function exportSimpleCFSPdf(
 
   y = bodyText(doc, 'This calculation determines the nominal and design bending moment capacity (phi_Mb) and shear capacity (phi_Vn) of a single cold-formed steel C-section under major-axis bending.', y);
   y += 2;
-  y = bodyText(doc, 'The design method is the Direct Strength Method (DSM) per AS/NZS 4600:2018 Clause 7.2.2. Shear capacity is per Clause 3.3.4.', y);
+  y = bodyText(doc, 'The design method is the Effective Width Method (EWM) per AS/NZS 4600:2018 Section 3.3. Shear capacity is per Clause 3.3.4.', y);
   y += 2;
   y = bodyText(doc, 'Design Standard: AS/NZS 4600:2018 — Australian/New Zealand Standard for Cold-Formed Steel Structures.', y);
   y += 2;
@@ -552,15 +552,15 @@ export function exportSimpleCFSPdf(
   //  5.0  BUCKLING CALCULATIONS
   // ================================================================
 
-  y = heading(doc, '5.0', 'BUCKLING CALCULATIONS', y, 'Cl. 7.2.2');
+  y = heading(doc, '5.0', 'BUCKLING CALCULATIONS', y, 'Cl. 3.3.3 / D2.1.1');
 
   // 5.1 Yield Moment
   y = subHeading(doc, '5.1  Yield Moment (My)', y);
 
   y = equationBlock(doc,
     'Yield Moment',
-    'Cl. 7.2.2',
-    'My = Sx x fy / 10^6  (kN.m)',
+    'Cl. 3.3.3.2.1(7)',
+    'My = Zf x fy / 10^6  (kN.m)',
     `My = ${fmt(gp.Sx, 1)} x ${fmt(fy, 1)} / 10^6`,
     fmt(bk.My),
     'kN.m', y
@@ -568,9 +568,9 @@ export function exportSimpleCFSPdf(
 
   y = codeSnippet(doc, [
     'Implementation Snippet:',
-    'def yield_moment(Sx, fy):',
-    '    # Cl. 7.2.2 - yield moment',
-    '    My = Sx * fy / 1e6  # N.mm -> kN.m',
+    'def yield_moment(Zf, fy):',
+    '    # Cl. 3.3.3.2.1(7) - yield moment',
+    '    My = Zf * fy / 1e6  # N.mm -> kN.m',
     '    return My',
   ], y);
 
@@ -637,30 +637,32 @@ export function exportSimpleCFSPdf(
   y = subHeading(doc, '5.3  Elastic Distortional Buckling Stress (fod)', y);
 
   if (bk.fod > 0) {
-    y = bodyText(doc, "Distortional buckling stress computed using Schafer's simplified closed-form approximation for lipped C-sections.", y);
+    y = bodyText(doc, "Distortional buckling stress computed per Appendix D, Cl. D2.2.1 (analytical method for simple lipped channels in bending). Flange-lip assembly properties per Eqs. D1.2.1(22)-(28).", y);
     y += 1;
 
     y = equationBlock(doc,
       'Distortional Buckling Stress (fod)',
-      'Cl. 7.2.2.4',
-      'fod = beta_1 x (D / (bf^2 x t)) x [1 + beta_2 x (bf/d)^2 + beta_3 x (lip/bf)^2]',
-      `beta_1=1.0, beta_2=0.4, beta_3=5.0, bf=${fmt(flatFlange, 1)}, d=${fmt(geo.d, 1)}, lip=${fmt(flatLip, 1)}`,
+      'Cl. D2.2.1 / D1.2.1(13)',
+      'fod = E/(2A) x [(a1+a2) - sqrt((a1+a2)^2 - 4*a3)]',
+      `lambda(D2.2.1(1)), k_phi(D2.2.1(2)), alpha_1(D2.2.1(3))`,
       fmt(bk.fod, 2),
       'MPa', y
     );
 
     y = codeSnippet(doc, [
       'Implementation Snippet:',
-      'def distortional_buckling(D, bf, d, t, lip):',
-      '    # Cl. 7.2.2.4 - Schafer simplified formula',
-      '    beta1, beta2, beta3 = 1.0, 0.4, 5.0',
-      '    fod = beta1 * (D/(bf**2*t)) * (1 + beta2*(bf/d)**2 + beta3*(lip/bf)**2)',
+      'def distortional_buckling_bending(E, t, b_f, d_l, b_w):',
+      '    # Cl. D2.2.1 - analytical fod for bending',
+      '    A_fl = (b_f + d_l) * t',
+      '    lam = 4.80 * (Ix_fl*b_f**2*b_w/(2*t**3))**0.25',
+      '    # ... alpha_1, alpha_2, alpha_3 per D1.2.1',
+      '    fod = E/(2*A_fl) * ((a1+a2) - sqrt((a1+a2)**2-4*a3))',
       '    return fod',
     ], y);
 
     y = equationBlock(doc,
       'Critical Distortional Half-Wavelength (Lcrd)',
-      'Cl. 7.2.2.4',
+      'Cl. 3.3.3.3(9)',
       'Lcrd = 4.8 x (d x bf^2 / t)^0.25',
       `Lcrd = 4.8 x (${fmt(geo.d, 1)} x ${fmt(flatFlange, 1)}^2 / ${fmt(geo.t, 2)})^0.25`,
       fmt(bk.Lcrd, 1),
@@ -705,25 +707,26 @@ export function exportSimpleCFSPdf(
   y += 3;
 
   // ================================================================
-  //  6.0  STRENGTH CALCULATIONS (BENDING - DSM)
+  //  6.0  STRENGTH CALCULATIONS (BENDING - Section 3.3 EWM)
   // ================================================================
 
-  y = heading(doc, '6.0', 'BENDING STRENGTH CALCULATIONS (DSM)', y, 'Cl. 7.2.2');
+  y = heading(doc, '6.0', 'BENDING STRENGTH CALCULATIONS (Section 3.3 EWM)', y, 'Cl. 3.3');
 
   // 6.1 LTB Capacity
-  y = subHeading(doc, '6.1  Lateral-Torsional Buckling Capacity (Mbe)  [Cl. 7.2.2.2]', y);
+  y = subHeading(doc, '6.1  Lateral-Torsional Buckling (Mb,ltb)  [Cl. 3.3.3.2.1]', y);
 
   const Mo = bk.Mo > 0 && isFinite(bk.Mo) ? bk.Mo : Infinity;
 
-  y = bodyText(doc, 'Three regimes for lateral-torsional buckling:', y);
-  y = bulletText(doc, 'If Mo >= 2.78 x My:  Mbe = My  (full yield, laterally braced)', y);
-  y = bulletText(doc, 'If 0.56 x My < Mo < 2.78 x My:  Mbe = (10/9) x My x [1 - 10 x My / (36 x Mo)]  (inelastic LTB)', y);
-  y = bulletText(doc, 'If Mo <= 0.56 x My:  Mbe = Mo  (elastic LTB)', y);
+  y = bodyText(doc, 'Critical moment Mc per Cl. 3.3.3.2.1, using lambda_b = sqrt(My/Mo):', y);
+  y = bulletText(doc, 'If lambda_b <= 0.60:  Mc = My  [Eq. 3.3.3.2.1(3)]', y);
+  y = bulletText(doc, 'If 0.60 < lambda_b < 1.336:  Mc = 1.11 x My x [1 - 10 x lambda_b^2 / 36]  [Eq. 3.3.3.2.1(4)]', y);
+  y = bulletText(doc, 'If lambda_b >= 1.336:  Mc = My / lambda_b^2  [Eq. 3.3.3.2.1(5)]', y);
+  y = bulletText(doc, 'fc = Mc / Zf,  Mb = Zc x fc  [Eqs. 3.3.3.2.1(1)-(2)]', y);
   y += 2;
 
   let MbeRegime: string;
   if (Mo >= 2.78 * bk.My) {
-    MbeRegime = `Mo = ${isFinite(Mo) ? fmt(Mo) : 'Infinity'} >= 2.78 x My = ${fmt(2.78 * bk.My)} --> Full yield`;
+    MbeRegime = `Mo = ${isFinite(Mo) ? fmt(Mo) : 'Infinity'} >= 2.78 x My = ${fmt(2.78 * bk.My)} --> lambda_b <= 0.60, Mc = My`;
   } else if (Mo > 0.56 * bk.My) {
     MbeRegime = `0.56 x My = ${fmt(0.56 * bk.My)} < Mo = ${fmt(Mo)} < 2.78 x My = ${fmt(2.78 * bk.My)} --> Inelastic LTB`;
   } else {
@@ -734,13 +737,13 @@ export function exportSimpleCFSPdf(
   y += 1;
 
   y = equationBlock(doc,
-    'Mbe',
-    'Cl. 7.2.2.2',
+    'Mb,ltb',
+    'Cl. 3.3.3.2.1',
     Mo >= 2.78 * bk.My
-      ? 'Mbe = My'
+      ? 'lambda_b <= 0.60: Mc = My, fc = fy, Mb = Zc x fc'
       : Mo > 0.56 * bk.My
-        ? 'Mbe = (10/9) x My x [1 - 10 x My / (36 x Mo)]'
-        : 'Mbe = Mo',
+        ? 'Mc = 1.11 x My x [1 - 10 x lambda_b^2 / 36], fc = Mc/Zf, Mb = Zc x fc'
+        : 'lambda_b >= 1.336: Mc = My/lambda_b^2, fc = Mc/Zf, Mb = Zc x fc',
     `My = ${fmt(bk.My)}, Mo = ${isFinite(Mo) ? fmt(Mo) : 'Infinity'}`,
     fmt(cap.Mbe),
     'kN.m', y
@@ -748,88 +751,79 @@ export function exportSimpleCFSPdf(
 
   y = codeSnippet(doc, [
     'Implementation Snippet:',
-    'def ltb_capacity(My, Mo):',
-    '    # Cl. 7.2.2.2 - lateral-torsional buckling capacity',
-    '    if Mo >= 2.78 * My:',
-    '        return My  # full yield',
-    '    elif Mo > 0.56 * My:',
-    '        return (10.0/9.0) * My * (1 - 10*My/(36*Mo))  # inelastic',
+    'def ltb_capacity(My, Mo, Zf, fy, geo, mat, gross):',
+    '    # Cl. 3.3.3.2.1 - lateral-torsional buckling',
+    '    lambda_b = math.sqrt(My / Mo) if Mo > 0 else 0',
+    '    if lambda_b <= 0.60:',
+    '        Mc = My',
+    '    elif lambda_b < 1.336:',
+    '        Mc = 1.11 * My * (1 - 10*lambda_b**2/36)',
     '    else:',
-    '        return Mo  # elastic LTB',
+    '        Mc = My / lambda_b**2',
+    '    fc = Mc * 1e6 / Zf  # stress in MPa',
+    '    Zc = effective_modulus_at_stress(geo, mat, gross, fc)',
+    '    return Zc * fc / 1e6  # kN.m',
   ], y);
 
-  // 6.2 Local Buckling
-  y = subHeading(doc, '6.2  Local Buckling Capacity (Mbl)  [Cl. 7.2.2.3]', y);
+  // 6.2 Section Moment Capacity
+  y = subHeading(doc, '6.2  Section Moment Capacity (Ms)  [Cl. 3.3.2.2]', y);
 
   y = equationBlock(doc,
-    'Local Slenderness (lambda_l)',
-    'Cl. 7.2.2.3',
-    'lambda_l = sqrt(Mbe / Mol)',
-    `lambda_l = sqrt(${fmt(cap.Mbe)} / ${fmt(bk.Mol)})`,
-    fmt(cap.lambdaL, 4),
+    'Section Slenderness (Ze/Zf)',
+    'Cl. 2.2.1.2',
+    'Ze = effective section modulus at fy',
+    `Ze/Zf = ${fmt(cap.Mbl / bk.My, 4)} (Ms/My ratio)`,
+    fmt(cap.Mbl / bk.My, 4),
     '', y
   );
 
-  if (cap.lambdaL <= 0.776) {
-    y = bodyText(doc, `lambda_l = ${fmt(cap.lambdaL, 4)} <= 0.776 --> No local buckling reduction: Mbl = Mbe`, y, 2);
-  } else {
-    y = bodyText(doc, `lambda_l = ${fmt(cap.lambdaL, 4)} > 0.776 --> Local buckling reduction applies`, y, 2);
-  }
+  y = bodyText(doc, 'Ms = Ze x fy per Eq. 3.3.2.2. Local buckling is captured through effective widths.', y, 2);
 
   y = equationBlock(doc,
-    'Mbl',
-    'Cl. 7.2.2.3',
-    cap.lambdaL <= 0.776
-      ? 'Mbl = Mbe  (lambda_l <= 0.776)'
-      : 'Mbl = [1 - 0.15 x (Mol/Mbe)^0.4] x (Mol/Mbe)^0.4 x Mbe',
-    cap.lambdaL <= 0.776
-      ? `Mbl = Mbe = ${fmt(cap.Mbe)}`
-      : `Mol/Mbe = ${fmt(bk.Mol / cap.Mbe, 4)}, Mbe = ${fmt(cap.Mbe)}`,
+    'Ms',
+    'Cl. 3.3.2.2',
+    'Ms = Ze x fy',
+    `Ze = effective modulus at fy, fy = ${fmt(fy, 1)}`,
     fmt(cap.Mbl),
     'kN.m', y
   );
 
   y = codeSnippet(doc, [
     'Implementation Snippet:',
-    'import math',
-    'def local_buckling_capacity(Mbe, Mol):',
-    '    # Cl. 7.2.2.3 - DSM local buckling capacity',
-    '    lambda_l = math.sqrt(Mbe / Mol)',
-    '    if lambda_l <= 0.776:',
-    '        return Mbe',
-    '    else:',
-    '        ratio = Mol / Mbe',
-    '        return (1 - 0.15 * ratio**0.4) * ratio**0.4 * Mbe',
+    'def section_moment_capacity(Ze, fy):',
+    '    # Cl. 3.3.2.2 - nominal section moment capacity',
+    '    Ms = Ze * fy / 1e6  # N.mm -> kN.m',
+    '    return Ms',
   ], y);
 
   // 6.3 Distortional Buckling
-  y = subHeading(doc, '6.3  Distortional Buckling Capacity (Mbd)  [Cl. 7.2.2.4]', y);
+  y = subHeading(doc, '6.3  Distortional Buckling (Mb,dist)  [Cl. 3.3.3.3(a)]', y);
 
   if (bk.fod > 0 && bk.Mod > 0) {
     y = equationBlock(doc,
       'Distortional Slenderness (lambda_d)',
-      'Cl. 7.2.2.4',
+      'Cl. 3.3.3.3(8)',
       'lambda_d = sqrt(My / Mod)',
       `lambda_d = sqrt(${fmt(bk.My)} / ${fmt(bk.Mod)})`,
       fmt(cap.lambdaD, 4),
       '', y
     );
 
-    if (cap.lambdaD <= 0.673) {
-      y = bodyText(doc, `lambda_d = ${fmt(cap.lambdaD, 4)} <= 0.673 --> No distortional reduction: Mbd = My`, y, 2);
+    if (cap.lambdaD <= 0.674) {
+      y = bodyText(doc, `lambda_d = ${fmt(cap.lambdaD, 4)} <= 0.674 --> No distortional reduction: Mc = My  [Eq. 3.3.3.3(3)]`, y, 2);
     } else {
-      y = bodyText(doc, `lambda_d = ${fmt(cap.lambdaD, 4)} > 0.673 --> Distortional reduction applies`, y, 2);
+      y = bodyText(doc, `lambda_d = ${fmt(cap.lambdaD, 4)} > 0.674 --> Distortional reduction per Eq. 3.3.3.3(4)`, y, 2);
     }
 
     y = equationBlock(doc,
-      'Mbd',
-      'Cl. 7.2.2.4',
-      cap.lambdaD <= 0.673
-        ? 'Mbd = My  (lambda_d <= 0.673)'
-        : 'Mbd = [1 - 0.22 x (Mod/My)^0.5] x (Mod/My)^0.5 x My',
-      cap.lambdaD <= 0.673
-        ? `Mbd = My = ${fmt(bk.My)}`
-        : `Mod/My = ${fmt(bk.Mod / bk.My, 4)}, My = ${fmt(bk.My)}`,
+      'Mb,dist',
+      'Cl. 3.3.3.3(a)',
+      cap.lambdaD <= 0.674
+        ? 'Mc = My, Mb = Zc x fc = Mc  (lambda_d <= 0.674)'
+        : 'Mc = (My/lambda_d)(1 - 0.22/lambda_d), Mb = Zc x fc = Mc',
+      cap.lambdaD <= 0.674
+        ? `Mb,dist = My = ${fmt(bk.My)}`
+        : `My = ${fmt(bk.My)}, lambda_d = ${fmt(cap.lambdaD, 4)}`,
       fmt(cap.Mbd),
       'kN.m', y
     );
@@ -837,17 +831,18 @@ export function exportSimpleCFSPdf(
     y = codeSnippet(doc, [
       'Implementation Snippet:',
       'import math',
-      'def distortional_buckling_capacity(My, Mod):',
-      '    # Cl. 7.2.2.4 - DSM distortional buckling capacity',
+      'def distortional_buckling(My, Mod):',
+      '    # Cl. 3.3.3.3(a) - distortional buckling for C-section',
       '    lambda_d = math.sqrt(My / Mod)',
-      '    if lambda_d <= 0.673:',
-      '        return My',
+      '    if lambda_d <= 0.674:',
+      '        Mc = My',
       '    else:',
-      '        ratio = Mod / My',
-      '        return (1 - 0.22 * ratio**0.5) * ratio**0.5 * My',
+      '        Mc = (My/lambda_d) * (1 - 0.22/lambda_d)',
+      '    # Zc = Zf for standard C-section (k0 > 0)',
+      '    return Mc  # Mb,dist = Zc x fc = Mc',
     ], y);
   } else {
-    y = bodyText(doc, 'No distortional buckling mode (unlipped section). Mbd is excluded from the governing check.', y);
+    y = bodyText(doc, 'No distortional buckling mode (unlipped section). Mb,dist is excluded from the governing check.', y);
     y += 2;
   }
 
@@ -855,17 +850,17 @@ export function exportSimpleCFSPdf(
   //  7.0  GOVERNING LIMIT STATE (BENDING)
   // ================================================================
 
-  y = heading(doc, '7.0', 'GOVERNING LIMIT STATE (BENDING)', y, 'Cl. 7.2.2');
+  y = heading(doc, '7.0', 'GOVERNING LIMIT STATE (BENDING)', y, 'Cl. 3.3.1 / 3.3.3.1');
 
-  y = bodyText(doc, 'The nominal member moment capacity is the minimum of the local and distortional buckling capacities:', y);
+  y = bodyText(doc, 'The governing nominal moment capacity per Cl. 3.3.3.1:', y);
   y += 1;
 
-  y = bodyText(doc, 'Mb = min(Mbl, Mbd)  [Mbd excluded if unlipped]', y, 2);
+  y = bodyText(doc, 'Mn = min(Ms, Mb_ltb, Mb_dist)  [Mb,dist excluded if unlipped]', y, 2);
   y += 2;
 
-  y = paramRow(doc, 'Mbe (LTB capacity)', fmt(cap.Mbe), 'kN.m', y);
-  y = paramRow(doc, 'Mbl (local buckling capacity)', fmt(cap.Mbl), 'kN.m', y);
-  y = paramRow(doc, 'Mbd (distortional capacity)', cap.Mbd > 0 ? fmt(cap.Mbd) : 'N/A (unlipped)', 'kN.m', y);
+  y = paramRow(doc, 'Mb,ltb (lateral-torsional, Cl.3.3.3.2)', fmt(cap.Mbe), 'kN.m', y);
+  y = paramRow(doc, 'Ms (section capacity, Cl.3.3.2.2)', fmt(cap.Mbl), 'kN.m', y);
+  y = paramRow(doc, 'Mb,dist (distortional, Cl.3.3.3.3)', cap.Mbd > 0 ? fmt(cap.Mbd) : 'N/A (unlipped)', 'kN.m', y);
   y += 1;
   y = paramRow(doc, 'Governing mode', govModeBending, '', y, true);
   y = paramRow(doc, 'Mn = Mb', fmt(cap.Mn), 'kN.m', y, true);
@@ -879,22 +874,27 @@ export function exportSimpleCFSPdf(
 
   if (shear) {
     // 8.1 Clear web depth
-    y = subHeading(doc, '8.1  Clear Web Depth (hw)', y);
+    y = subHeading(doc, '8.1  Web Dimensions (d1, tw)', y);
 
     y = equationBlock(doc,
-      'Clear Web Depth',
+      'Flat Web Depth (d1)',
       'Cl. 3.3.4',
-      'hw = d - 2(r + t)',
-      `hw = ${fmt(geo.d, 1)} - 2 x (${fmt(geo.r, 1)} + ${fmt(geo.t, 2)})`,
+      'd1 = d - 2(r + t)',
+      `d1 = ${fmt(geo.d, 1)} - 2 x (${fmt(geo.r, 1)} + ${fmt(geo.t, 2)})`,
       fmt(shear.hw, 2),
       'mm', y
     );
 
+    y = paramRow(doc, 'tw (web thickness)', fmt(geo.t, 2), 'mm', y);
+    y = paramRow(doc, 'd1/tw (web slenderness)', fmt(shear.hw / geo.t, 2), '', y, true);
+
     y = codeSnippet(doc, [
       'Implementation Snippet:',
-      'def clear_web_depth(d, r, t):',
-      '    # Cl. 3.3.4 - clear web depth',
-      '    return d - 2 * (r + t)',
+      'def web_dimensions(d, r, t):',
+      '    # Cl. 3.3.4 - flat web depth',
+      '    d1 = d - 2 * (r + t)',
+      '    tw = t',
+      '    return d1, tw',
     ], y);
 
     // 8.2 Shear area
@@ -903,59 +903,28 @@ export function exportSimpleCFSPdf(
     y = equationBlock(doc,
       'Shear Area',
       'Cl. 3.3.4',
-      'Av = hw x t',
+      'Av = d1 x tw',
       `Av = ${fmt(shear.hw, 2)} x ${fmt(geo.t, 2)}`,
       fmt(shear.Av, 1),
       'mm^2', y
     );
 
-    // 8.3 Shear yield
-    y = subHeading(doc, '8.3  Shear Yield Force (Vy)', y);
-
-    y = equationBlock(doc,
-      'Shear Yield Stress (fvy)',
-      'Cl. 3.3.4',
-      'fvy = fy / sqrt(3)',
-      `fvy = ${fmt(fy, 1)} / sqrt(3)`,
-      fmt(shear.fvy, 2),
-      'MPa', y
-    );
-
-    y = equationBlock(doc,
-      'Shear Yield Force (Vy)',
-      'Cl. 3.3.4',
-      'Vy = fvy x Av / 10^3  (kN)',
-      `Vy = ${fmt(shear.fvy, 2)} x ${fmt(shear.Av, 1)} / 10^3`,
-      fmt(shear.Vy),
-      'kN', y
-    );
-
-    y = codeSnippet(doc, [
-      'Implementation Snippet:',
-      'import math',
-      'def shear_yield(fy, Av):',
-      '    # Cl. 3.3.4 - shear yield force',
-      '    fvy = fy / math.sqrt(3)  # approx 0.577*fy',
-      '    Vy = fvy * Av / 1e3  # N -> kN',
-      '    return fvy, Vy',
-    ], y);
-
-    // 8.4 Shear buckling coefficient
-    y = subHeading(doc, '8.4  Shear Buckling Coefficient (kv)', y);
+    // 8.3 Shear buckling coefficient
+    y = subHeading(doc, '8.3  Shear Buckling Coefficient (kv)', y);
 
     if (shearParams.hasStiffeners && shearParams.stiffenerSpacing > 0) {
       const aspectRatio = shearParams.stiffenerSpacing / shear.hw;
-      y = bodyText(doc, `Stiffened web: stiffener spacing a = ${fmtInt(shearParams.stiffenerSpacing)} mm, a/hw = ${fmt(aspectRatio, 3)}`, y);
+      y = bodyText(doc, `Stiffened web: stiffener spacing a = ${fmtInt(shearParams.stiffenerSpacing)} mm, a/d1 = ${fmt(aspectRatio, 3)}`, y);
       if (aspectRatio <= 1.0) {
-        y = bodyText(doc, 'a/hw <= 1.0:  kv = 4.00 + 5.34 / (a/hw)^2', y, 2);
+        y = bodyText(doc, 'Eq. 3.3.4(4): a/d1 <= 1.0:  kv = 4.00 + 5.34 / (a/d1)^2', y, 2);
       } else {
-        y = bodyText(doc, 'a/hw > 1.0:  kv = 5.34 + 4.00 / (a/hw)^2', y, 2);
+        y = bodyText(doc, 'Eq. 3.3.4(5): a/d1 > 1.0:  kv = 5.34 + 4.00 / (a/d1)^2', y, 2);
       }
     } else if (shearParams.a > 0) {
       const aspectRatio = shearParams.a / shear.hw;
-      y = bodyText(doc, `Unstiffened web with finite panel length a = ${fmtInt(shearParams.a)} mm, a/hw = ${fmt(aspectRatio, 3)}`, y);
+      y = bodyText(doc, `Unstiffened web with finite panel length a = ${fmtInt(shearParams.a)} mm, a/d1 = ${fmt(aspectRatio, 3)}`, y);
     } else {
-      y = bodyText(doc, 'Unstiffened web (no transverse stiffeners, infinite panel): kv = 5.34', y);
+      y = bodyText(doc, 'Unstiffened web (no transverse stiffeners): kv = 5.34', y);
     }
     y += 1;
 
@@ -964,94 +933,67 @@ export function exportSimpleCFSPdf(
 
     y = codeSnippet(doc, [
       'Implementation Snippet:',
-      'def shear_buckling_coeff(has_stiffeners, a, hw):',
+      'def shear_buckling_coeff(has_stiffeners, a, d1):',
       '    # Cl. 3.3.4 - shear buckling coefficient',
       '    if not has_stiffeners:',
       '        return 5.34  # unstiffened web',
-      '    ratio = a / hw',
+      '    ratio = a / d1',
       '    if ratio <= 1.0:',
-      '        return 4.00 + 5.34 / ratio**2',
+      '        return 4.00 + 5.34 / ratio**2  # Eq. 3.3.4(4)',
       '    else:',
-      '        return 5.34 + 4.00 / ratio**2',
+      '        return 5.34 + 4.00 / ratio**2  # Eq. 3.3.4(5)',
     ], y);
 
-    // 8.5 Elastic shear buckling
-    y = subHeading(doc, '8.5  Elastic Shear Buckling', y);
+    // 8.4 Slenderness thresholds
+    y = subHeading(doc, '8.4  Slenderness Thresholds', y);
 
-    y = equationBlock(doc,
-      'Elastic Shear Buckling Stress (tau_cr)',
-      'Cl. 3.3.4',
-      'tau_cr = kv x pi^2 x E / [12(1 - nu^2)] x (t/hw)^2',
-      `tau_cr = ${fmt(shear.kv)} x pi^2 x ${fmtInt(E_input)} / [12(1 - ${fmt(nu_input, 2)}^2)] x (${fmt(geo.t, 2)}/${fmt(shear.hw, 2)})^2`,
-      fmt(shear.tau_cr, 2),
-      'MPa', y
-    );
+    const d1 = shear.hw;
+    const tw = geo.t;
+    const slenderness = d1 / tw;
+    const threshold1 = Math.sqrt((E_input * shear.kv) / fy);
+    const threshold2 = 1.415 * threshold1;
 
-    y = equationBlock(doc,
-      'Elastic Shear Buckling Force (Vcr)',
-      'Cl. 3.3.4',
-      'Vcr = tau_cr x Av / 10^3  (kN)',
-      `Vcr = ${fmt(shear.tau_cr, 2)} x ${fmt(shear.Av, 1)} / 10^3`,
-      fmt(shear.Vcr),
-      'kN', y
-    );
-
-    y = codeSnippet(doc, [
-      'Implementation Snippet:',
-      'import math',
-      'def elastic_shear_buckling(kv, E, nu, t, hw, Av):',
-      '    # Cl. 3.3.4 - elastic shear buckling',
-      '    tau_cr = kv * math.pi**2 * E / (12*(1-nu**2)) * (t/hw)**2',
-      '    Vcr = tau_cr * Av / 1e3  # N -> kN',
-      '    return tau_cr, Vcr',
-    ], y);
-
-    // 8.6 Shear slenderness
-    y = subHeading(doc, '8.6  Shear Slenderness (lambda_v)', y);
-
-    y = equationBlock(doc,
-      'Shear Slenderness',
-      'Cl. 3.3.4',
-      'lambda_v = sqrt(Vy / Vcr)',
-      `lambda_v = sqrt(${fmt(shear.Vy)} / ${fmt(shear.Vcr)})`,
-      fmt(shear.lambda_v, 4),
-      '', y
-    );
-
-    // 8.7 Nominal shear capacity
-    y = subHeading(doc, '8.7  Nominal Shear Capacity (Vn)', y);
-
-    y = bodyText(doc, 'Three regimes per Cl. 3.3.4:', y);
-    y = bulletText(doc, 'lambda_v <= 0.815:  Vn = Vy  (shear yielding)', y);
-    y = bulletText(doc, '0.815 < lambda_v <= 1.227:  Vn = 0.815 x sqrt(Vy x Vcr)  (inelastic shear buckling)', y);
-    y = bulletText(doc, 'lambda_v > 1.227:  Vn = Vcr  (elastic shear buckling)', y);
+    y = paramRow(doc, 'd1/tw', fmt(slenderness, 2), '', y);
+    y = paramRow(doc, 'sqrt(E*kv/fy)', fmt(threshold1, 2), '', y);
+    y = paramRow(doc, '1.415*sqrt(E*kv/fy)', fmt(threshold2, 2), '', y, true);
     y += 2;
 
-    let VnRegime: string;
-    if (shear.lambda_v <= 0.815) {
-      VnRegime = `lambda_v = ${fmt(shear.lambda_v, 4)} <= 0.815 --> Shear yielding: Vn = Vy`;
-    } else if (shear.lambda_v <= 1.227) {
-      VnRegime = `0.815 < lambda_v = ${fmt(shear.lambda_v, 4)} <= 1.227 --> Inelastic buckling: Vn = 0.815 x sqrt(Vy x Vcr)`;
+    // 8.5 Nominal shear capacity
+    y = subHeading(doc, '8.5  Nominal Shear Capacity (Vv)', y);
+
+    y = bodyText(doc, 'Three equations per Cl. 3.3.4.1:', y);
+    y = bulletText(doc, 'Eq. 3.3.4(1): d1/tw <= sqrt(E*kv/fy):  Vv = 0.64*fy*d1*tw', y);
+    y = bulletText(doc, 'Eq. 3.3.4(2): sqrt(E*kv/fy) < d1/tw <= 1.415*sqrt(E*kv/fy):  Vv = 0.64*tw^2*sqrt(E*kv*fy)', y);
+    y = bulletText(doc, 'Eq. 3.3.4(3): d1/tw > 1.415*sqrt(E*kv/fy):  Vv = 0.905*E*kv*tw^3/d1', y);
+    y += 2;
+
+    let VvRegime: string;
+    if (shear.shearMode === 'Eq.3.3.4(1)') {
+      VvRegime = `d1/tw = ${fmt(slenderness, 2)} <= sqrt(E*kv/fy) = ${fmt(threshold1, 2)} --> Eq. 3.3.4(1): Vv = 0.64*fy*d1*tw`;
+    } else if (shear.shearMode === 'Eq.3.3.4(2)') {
+      VvRegime = `sqrt(E*kv/fy) = ${fmt(threshold1, 2)} < d1/tw = ${fmt(slenderness, 2)} <= 1.415*sqrt(E*kv/fy) = ${fmt(threshold2, 2)} --> Eq. 3.3.4(2): Vv = 0.64*tw^2*sqrt(E*kv*fy)`;
     } else {
-      VnRegime = `lambda_v = ${fmt(shear.lambda_v, 4)} > 1.227 --> Elastic buckling: Vn = Vcr`;
+      VvRegime = `d1/tw = ${fmt(slenderness, 2)} > 1.415*sqrt(E*kv/fy) = ${fmt(threshold2, 2)} --> Eq. 3.3.4(3): Vv = 0.905*E*kv*tw^3/d1`;
     }
 
-    y = bodyText(doc, `Determination: ${VnRegime}`, y, 2);
+    y = bodyText(doc, `Determination: ${VvRegime}`, y, 2);
     y += 1;
 
     y = equationBlock(doc,
-      'Vn',
-      'Cl. 3.3.4',
-      shear.shearMode === 'yielding'
-        ? 'Vn = Vy'
-        : shear.shearMode === 'inelastic-buckling'
-          ? 'Vn = 0.815 x sqrt(Vy x Vcr)'
-          : 'Vn = Vcr',
-      shear.shearMode === 'yielding'
-        ? `Vn = Vy = ${fmt(shear.Vy)}`
-        : shear.shearMode === 'inelastic-buckling'
-          ? `Vn = 0.815 x sqrt(${fmt(shear.Vy)} x ${fmt(shear.Vcr)})`
-          : `Vn = Vcr = ${fmt(shear.Vcr)}`,
+      'Vv',
+      shear.shearMode === 'Eq.3.3.4(1)' ? 'Eq. 3.3.4(1)'
+        : shear.shearMode === 'Eq.3.3.4(2)' ? 'Eq. 3.3.4(2)'
+        : 'Eq. 3.3.4(3)',
+      shear.shearMode === 'Eq.3.3.4(1)'
+        ? 'Vv = 0.64 * fy * d1 * tw'
+        : shear.shearMode === 'Eq.3.3.4(2)'
+          ? 'Vv = 0.64 * tw^2 * sqrt(E * kv * fy)'
+          : 'Vv = 0.905 * E * kv * tw^3 / d1',
+      shear.shearMode === 'Eq.3.3.4(1)'
+        ? `Vv = 0.64 x ${fmt(fy, 1)} x ${fmt(d1, 2)} x ${fmt(tw, 2)} / 10^3`
+        : shear.shearMode === 'Eq.3.3.4(2)'
+          ? `Vv = 0.64 x ${fmt(tw, 2)}^2 x sqrt(${fmtInt(E_input)} x ${fmt(shear.kv)} x ${fmt(fy, 1)}) / 10^3`
+          : `Vv = 0.905 x ${fmtInt(E_input)} x ${fmt(shear.kv)} x ${fmt(tw, 2)}^3 / ${fmt(d1, 2)} / 10^3`,
       fmt(shear.Vn),
       'kN', y
     );
@@ -1059,15 +1001,17 @@ export function exportSimpleCFSPdf(
     y = codeSnippet(doc, [
       'Implementation Snippet:',
       'import math',
-      'def nominal_shear_capacity(Vy, Vcr):',
-      '    # Cl. 3.3.4 - nominal shear capacity (three regimes)',
-      '    lambda_v = math.sqrt(Vy / Vcr)',
-      '    if lambda_v <= 0.815:',
-      '        return Vy  # yielding',
-      '    elif lambda_v <= 1.227:',
-      '        return 0.815 * math.sqrt(Vy * Vcr)  # inelastic',
+      '# AS/NZS 4600:2018 Cl. 3.3.4.1',
+      'def nominal_shear_capacity(fy, E, kv, d1, tw):',
+      '    slenderness = d1 / tw',
+      '    threshold = math.sqrt(E * kv / fy)',
+      '    if slenderness <= threshold:',
+      '        Vv = 0.64 * fy * d1 * tw         # Eq. 3.3.4(1)',
+      '    elif slenderness <= 1.415 * threshold:',
+      '        Vv = 0.64 * tw**2 * math.sqrt(E * kv * fy)  # Eq. 3.3.4(2)',
       '    else:',
-      '        return Vcr  # elastic buckling',
+      '        Vv = 0.905 * E * kv * tw**3 / d1  # Eq. 3.3.4(3)',
+      '    return Vv  # in N',
     ], y);
   } else {
     y = bodyText(doc, 'Shear capacity not computed.', y);
@@ -1085,7 +1029,7 @@ export function exportSimpleCFSPdf(
 
   y = equationBlock(doc,
     'Design Bending Capacity',
-    'Cl. 7.2.2',
+    'Cl. 3.3',
     'phi_Mn = phi_b x Mn',
     `phi_Mn = ${fmt(cap.phi_b, 2)} x ${fmt(cap.Mn)}`,
     fmt(cap.phiMn),
@@ -1095,7 +1039,7 @@ export function exportSimpleCFSPdf(
   y = codeSnippet(doc, [
     'Implementation Snippet:',
     'def design_bending_capacity(phi_b, Mn):',
-    '    # Cl. 7.2.2 - design bending capacity',
+    '    # Cl. 3.3 - design bending capacity',
     '    # phi_b = 0.90 per AS/NZS 4600:2018',
     '    return phi_b * Mn',
   ], y);
@@ -1116,25 +1060,25 @@ export function exportSimpleCFSPdf(
     y = equationBlock(doc,
       'Design Shear Capacity',
       'Cl. 3.3.4',
-      'phi_Vn = phi_v x Vn',
-      `phi_Vn = ${fmt(shear.phi_v, 2)} x ${fmt(shear.Vn)}`,
+      'phi_v x Vv = phi_v x Vv',
+      `phi_v x Vv = ${fmt(shear.phi_v, 2)} x ${fmt(shear.Vn)}`,
       fmt(shear.phiVn),
       'kN', y
     );
 
     y = codeSnippet(doc, [
       'Implementation Snippet:',
-      'def design_shear_capacity(phi_v, Vn):',
+      'def design_shear_capacity(phi_v, Vv):',
       '    # Cl. 3.3.4 - design shear capacity',
-      '    # phi_v = 0.90 per AS/NZS 4600:2018',
-      '    return phi_v * Vn',
+      '    # phi_v = 0.90 per AS/NZS 4600:2018 Table 1.6.3',
+      '    return phi_v * Vv',
     ], y);
 
     y = boxedResult(doc, [
       '----------------------------------------',
       'FINAL SHEAR DESIGN CAPACITY',
-      `Nominal strength Vn = ${fmt(shear.Vn)} kN`,
-      `Design strength phi_Vn = ${fmt(shear.phiVn)} kN`,
+      `Nominal strength Vv = ${fmt(shear.Vn)} kN`,
+      `Design strength phi_v*Vv = ${fmt(shear.phiVn)} kN`,
       `Governing mode: ${shearModeLabel}`,
       '----------------------------------------',
     ], y);
@@ -1148,14 +1092,14 @@ export function exportSimpleCFSPdf(
 
   y = heading(doc, '10.0', 'CONCLUSION', y);
 
-  y = bodyText(doc, `The design bending capacity of the ${sectionDesc} section has been determined using the Direct Strength Method per AS/NZS 4600:2018 Clause 7.2.2.`, y);
+  y = bodyText(doc, `The design bending capacity of the ${sectionDesc} section has been determined using the Effective Width Method (EWM) per AS/NZS 4600:2018 Section 3.3.`, y);
   y += 2;
 
   y = bodyText(doc, `The governing bending failure mode is ${govModeBending} with a nominal moment capacity Mn = ${fmt(cap.Mn)} kN.m and a design capacity phi_Mn = ${fmt(cap.phiMn)} kN.m (phi_b = ${fmt(cap.phi_b, 2)}).`, y);
   y += 2;
 
   if (shear) {
-    y = bodyText(doc, `The shear capacity of the web has been determined per AS/NZS 4600:2018 Clause 3.3.4. The governing shear failure mode is ${shearModeLabel} with a nominal shear capacity Vn = ${fmt(shear.Vn)} kN and a design capacity phi_Vn = ${fmt(shear.phiVn)} kN (phi_v = ${fmt(shear.phi_v, 2)}).`, y);
+    y = bodyText(doc, `The shear capacity of the web has been determined per AS/NZS 4600:2018 Clause 3.3.4.1. The governing shear failure mode is ${shearModeLabel} with a nominal shear capacity Vv = ${fmt(shear.Vn)} kN and a design capacity phi_v*Vv = ${fmt(shear.phiVn)} kN (phi_v = ${fmt(shear.phi_v, 2)}).`, y);
     y += 2;
   }
 
