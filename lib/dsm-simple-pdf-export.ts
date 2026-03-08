@@ -7,7 +7,7 @@ import type {
 } from '@/lib/calculations/dsm-simple';
 
 // ============================================================
-//  SIMPLE CFS – DSM CALCULATION REPORT (PDF)
+//  SIMPLE CFS – Section 3.3 EWM CALCULATION REPORT (PDF)
 //  AS/NZS 4600:2018
 // ============================================================
 // Professional A4 engineering calculation document.
@@ -292,7 +292,7 @@ export function exportSimpleCFSPdf(
   doc.setFontSize(13);
   doc.setFont(FONT, 'normal');
   doc.setTextColor(60, 60, 60);
-  doc.text('Direct Strength Method (DSM) — Flexural & Shear Capacity', MARGIN, y);
+  doc.text('Effective Width Method (EWM) — Section 3.3 Bending & Shear Capacity', MARGIN, y);
   y += 7;
 
   doc.setFontSize(10);
@@ -310,7 +310,7 @@ export function exportSimpleCFSPdf(
   doc.setTextColor(80, 80, 80);
   doc.text('Design Standard:  AS/NZS 4600:2018 (Cold-Formed Steel Structures)', MARGIN, y);
   y += 6;
-  doc.text('Method:           Direct Strength Method (DSM) per Cl. 7.2.2', MARGIN, y);
+  doc.text('Method:           Effective Width Method (EWM) per Section 3.3', MARGIN, y);
   y += 6;
   doc.text('Shear:            Cl. 3.3.4 Web Shear Capacity', MARGIN, y);
   y += 6;
@@ -356,7 +356,7 @@ export function exportSimpleCFSPdf(
 
   y = bodyText(doc, 'This calculation determines the nominal and design bending moment capacity (phi_Mb) and shear capacity (phi_Vn) of a single cold-formed steel C-section under major-axis bending.', y);
   y += 2;
-  y = bodyText(doc, 'The design method is the Direct Strength Method (DSM) per AS/NZS 4600:2018 Clause 7.2.2. Shear capacity is per Clause 3.3.4.', y);
+  y = bodyText(doc, 'The design method is the Effective Width Method (EWM) per AS/NZS 4600:2018 Section 3.3. Shear capacity is per Clause 3.3.4.', y);
   y += 2;
   y = bodyText(doc, 'Design Standard: AS/NZS 4600:2018 — Australian/New Zealand Standard for Cold-Formed Steel Structures.', y);
   y += 2;
@@ -552,15 +552,15 @@ export function exportSimpleCFSPdf(
   //  5.0  BUCKLING CALCULATIONS
   // ================================================================
 
-  y = heading(doc, '5.0', 'BUCKLING CALCULATIONS', y, 'Cl. 7.2.2');
+  y = heading(doc, '5.0', 'BUCKLING CALCULATIONS', y, 'Cl. 3.3.3 / D2.1.1');
 
   // 5.1 Yield Moment
   y = subHeading(doc, '5.1  Yield Moment (My)', y);
 
   y = equationBlock(doc,
     'Yield Moment',
-    'Cl. 7.2.2',
-    'My = Sx x fy / 10^6  (kN.m)',
+    'Cl. 3.3.3.2.1(7)',
+    'My = Zf x fy / 10^6  (kN.m)',
     `My = ${fmt(gp.Sx, 1)} x ${fmt(fy, 1)} / 10^6`,
     fmt(bk.My),
     'kN.m', y
@@ -568,9 +568,9 @@ export function exportSimpleCFSPdf(
 
   y = codeSnippet(doc, [
     'Implementation Snippet:',
-    'def yield_moment(Sx, fy):',
-    '    # Cl. 7.2.2 - yield moment',
-    '    My = Sx * fy / 1e6  # N.mm -> kN.m',
+    'def yield_moment(Zf, fy):',
+    '    # Cl. 3.3.3.2.1(7) - yield moment',
+    '    My = Zf * fy / 1e6  # N.mm -> kN.m',
     '    return My',
   ], y);
 
@@ -637,30 +637,32 @@ export function exportSimpleCFSPdf(
   y = subHeading(doc, '5.3  Elastic Distortional Buckling Stress (fod)', y);
 
   if (bk.fod > 0) {
-    y = bodyText(doc, "Distortional buckling stress computed using Schafer's simplified closed-form approximation for lipped C-sections.", y);
+    y = bodyText(doc, "Distortional buckling stress computed per Appendix D, Cl. D2.2.1 (analytical method for simple lipped channels in bending). Flange-lip assembly properties per Eqs. D1.2.1(22)-(28).", y);
     y += 1;
 
     y = equationBlock(doc,
       'Distortional Buckling Stress (fod)',
-      'Cl. 7.2.2.4',
-      'fod = beta_1 x (D / (bf^2 x t)) x [1 + beta_2 x (bf/d)^2 + beta_3 x (lip/bf)^2]',
-      `beta_1=1.0, beta_2=0.4, beta_3=5.0, bf=${fmt(flatFlange, 1)}, d=${fmt(geo.d, 1)}, lip=${fmt(flatLip, 1)}`,
+      'Cl. D2.2.1 / D1.2.1(13)',
+      'fod = E/(2A) x [(a1+a2) - sqrt((a1+a2)^2 - 4*a3)]',
+      `lambda(D2.2.1(1)), k_phi(D2.2.1(2)), alpha_1(D2.2.1(3))`,
       fmt(bk.fod, 2),
       'MPa', y
     );
 
     y = codeSnippet(doc, [
       'Implementation Snippet:',
-      'def distortional_buckling(D, bf, d, t, lip):',
-      '    # Cl. 7.2.2.4 - Schafer simplified formula',
-      '    beta1, beta2, beta3 = 1.0, 0.4, 5.0',
-      '    fod = beta1 * (D/(bf**2*t)) * (1 + beta2*(bf/d)**2 + beta3*(lip/bf)**2)',
+      'def distortional_buckling_bending(E, t, b_f, d_l, b_w):',
+      '    # Cl. D2.2.1 - analytical fod for bending',
+      '    A_fl = (b_f + d_l) * t',
+      '    lam = 4.80 * (Ix_fl*b_f**2*b_w/(2*t**3))**0.25',
+      '    # ... alpha_1, alpha_2, alpha_3 per D1.2.1',
+      '    fod = E/(2*A_fl) * ((a1+a2) - sqrt((a1+a2)**2-4*a3))',
       '    return fod',
     ], y);
 
     y = equationBlock(doc,
       'Critical Distortional Half-Wavelength (Lcrd)',
-      'Cl. 7.2.2.4',
+      'Cl. 3.3.3.3(9)',
       'Lcrd = 4.8 x (d x bf^2 / t)^0.25',
       `Lcrd = 4.8 x (${fmt(geo.d, 1)} x ${fmt(flatFlange, 1)}^2 / ${fmt(geo.t, 2)})^0.25`,
       fmt(bk.Lcrd, 1),
@@ -705,25 +707,26 @@ export function exportSimpleCFSPdf(
   y += 3;
 
   // ================================================================
-  //  6.0  STRENGTH CALCULATIONS (BENDING - DSM)
+  //  6.0  STRENGTH CALCULATIONS (BENDING - Section 3.3 EWM)
   // ================================================================
 
-  y = heading(doc, '6.0', 'BENDING STRENGTH CALCULATIONS (DSM)', y, 'Cl. 7.2.2');
+  y = heading(doc, '6.0', 'BENDING STRENGTH CALCULATIONS (Section 3.3 EWM)', y, 'Cl. 3.3');
 
   // 6.1 LTB Capacity
-  y = subHeading(doc, '6.1  Lateral-Torsional Buckling Capacity (Mbe)  [Cl. 7.2.2.2]', y);
+  y = subHeading(doc, '6.1  Lateral-Torsional Buckling (Mb,ltb)  [Cl. 3.3.3.2.1]', y);
 
   const Mo = bk.Mo > 0 && isFinite(bk.Mo) ? bk.Mo : Infinity;
 
-  y = bodyText(doc, 'Three regimes for lateral-torsional buckling:', y);
-  y = bulletText(doc, 'If Mo >= 2.78 x My:  Mbe = My  (full yield, laterally braced)', y);
-  y = bulletText(doc, 'If 0.56 x My < Mo < 2.78 x My:  Mbe = (10/9) x My x [1 - 10 x My / (36 x Mo)]  (inelastic LTB)', y);
-  y = bulletText(doc, 'If Mo <= 0.56 x My:  Mbe = Mo  (elastic LTB)', y);
+  y = bodyText(doc, 'Critical moment Mc per Cl. 3.3.3.2.1, using lambda_b = sqrt(My/Mo):', y);
+  y = bulletText(doc, 'If lambda_b <= 0.60:  Mc = My  [Eq. 3.3.3.2.1(3)]', y);
+  y = bulletText(doc, 'If 0.60 < lambda_b < 1.336:  Mc = 1.11 x My x [1 - 10 x lambda_b^2 / 36]  [Eq. 3.3.3.2.1(4)]', y);
+  y = bulletText(doc, 'If lambda_b >= 1.336:  Mc = My / lambda_b^2  [Eq. 3.3.3.2.1(5)]', y);
+  y = bulletText(doc, 'fc = Mc / Zf,  Mb = Zc x fc  [Eqs. 3.3.3.2.1(1)-(2)]', y);
   y += 2;
 
   let MbeRegime: string;
   if (Mo >= 2.78 * bk.My) {
-    MbeRegime = `Mo = ${isFinite(Mo) ? fmt(Mo) : 'Infinity'} >= 2.78 x My = ${fmt(2.78 * bk.My)} --> Full yield`;
+    MbeRegime = `Mo = ${isFinite(Mo) ? fmt(Mo) : 'Infinity'} >= 2.78 x My = ${fmt(2.78 * bk.My)} --> lambda_b <= 0.60, Mc = My`;
   } else if (Mo > 0.56 * bk.My) {
     MbeRegime = `0.56 x My = ${fmt(0.56 * bk.My)} < Mo = ${fmt(Mo)} < 2.78 x My = ${fmt(2.78 * bk.My)} --> Inelastic LTB`;
   } else {
@@ -734,13 +737,13 @@ export function exportSimpleCFSPdf(
   y += 1;
 
   y = equationBlock(doc,
-    'Mbe',
-    'Cl. 7.2.2.2',
+    'Mb,ltb',
+    'Cl. 3.3.3.2.1',
     Mo >= 2.78 * bk.My
-      ? 'Mbe = My'
+      ? 'lambda_b <= 0.60: Mc = My, fc = fy, Mb = Zc x fc'
       : Mo > 0.56 * bk.My
-        ? 'Mbe = (10/9) x My x [1 - 10 x My / (36 x Mo)]'
-        : 'Mbe = Mo',
+        ? 'Mc = 1.11 x My x [1 - 10 x lambda_b^2 / 36], fc = Mc/Zf, Mb = Zc x fc'
+        : 'lambda_b >= 1.336: Mc = My/lambda_b^2, fc = Mc/Zf, Mb = Zc x fc',
     `My = ${fmt(bk.My)}, Mo = ${isFinite(Mo) ? fmt(Mo) : 'Infinity'}`,
     fmt(cap.Mbe),
     'kN.m', y
@@ -748,88 +751,79 @@ export function exportSimpleCFSPdf(
 
   y = codeSnippet(doc, [
     'Implementation Snippet:',
-    'def ltb_capacity(My, Mo):',
-    '    # Cl. 7.2.2.2 - lateral-torsional buckling capacity',
-    '    if Mo >= 2.78 * My:',
-    '        return My  # full yield',
-    '    elif Mo > 0.56 * My:',
-    '        return (10.0/9.0) * My * (1 - 10*My/(36*Mo))  # inelastic',
+    'def ltb_capacity(My, Mo, Zf, fy, geo, mat, gross):',
+    '    # Cl. 3.3.3.2.1 - lateral-torsional buckling',
+    '    lambda_b = math.sqrt(My / Mo) if Mo > 0 else 0',
+    '    if lambda_b <= 0.60:',
+    '        Mc = My',
+    '    elif lambda_b < 1.336:',
+    '        Mc = 1.11 * My * (1 - 10*lambda_b**2/36)',
     '    else:',
-    '        return Mo  # elastic LTB',
+    '        Mc = My / lambda_b**2',
+    '    fc = Mc * 1e6 / Zf  # stress in MPa',
+    '    Zc = effective_modulus_at_stress(geo, mat, gross, fc)',
+    '    return Zc * fc / 1e6  # kN.m',
   ], y);
 
-  // 6.2 Local Buckling
-  y = subHeading(doc, '6.2  Local Buckling Capacity (Mbl)  [Cl. 7.2.2.3]', y);
+  // 6.2 Section Moment Capacity
+  y = subHeading(doc, '6.2  Section Moment Capacity (Ms)  [Cl. 3.3.2.2]', y);
 
   y = equationBlock(doc,
-    'Local Slenderness (lambda_l)',
-    'Cl. 7.2.2.3',
-    'lambda_l = sqrt(Mbe / Mol)',
-    `lambda_l = sqrt(${fmt(cap.Mbe)} / ${fmt(bk.Mol)})`,
-    fmt(cap.lambdaL, 4),
+    'Section Slenderness (Ze/Zf)',
+    'Cl. 2.2.1.2',
+    'Ze = effective section modulus at fy',
+    `Ze/Zf = ${fmt(cap.Mbl / bk.My, 4)} (Ms/My ratio)`,
+    fmt(cap.Mbl / bk.My, 4),
     '', y
   );
 
-  if (cap.lambdaL <= 0.776) {
-    y = bodyText(doc, `lambda_l = ${fmt(cap.lambdaL, 4)} <= 0.776 --> No local buckling reduction: Mbl = Mbe`, y, 2);
-  } else {
-    y = bodyText(doc, `lambda_l = ${fmt(cap.lambdaL, 4)} > 0.776 --> Local buckling reduction applies`, y, 2);
-  }
+  y = bodyText(doc, 'Ms = Ze x fy per Eq. 3.3.2.2. Local buckling is captured through effective widths.', y, 2);
 
   y = equationBlock(doc,
-    'Mbl',
-    'Cl. 7.2.2.3',
-    cap.lambdaL <= 0.776
-      ? 'Mbl = Mbe  (lambda_l <= 0.776)'
-      : 'Mbl = [1 - 0.15 x (Mol/Mbe)^0.4] x (Mol/Mbe)^0.4 x Mbe',
-    cap.lambdaL <= 0.776
-      ? `Mbl = Mbe = ${fmt(cap.Mbe)}`
-      : `Mol/Mbe = ${fmt(bk.Mol / cap.Mbe, 4)}, Mbe = ${fmt(cap.Mbe)}`,
+    'Ms',
+    'Cl. 3.3.2.2',
+    'Ms = Ze x fy',
+    `Ze = effective modulus at fy, fy = ${fmt(fy, 1)}`,
     fmt(cap.Mbl),
     'kN.m', y
   );
 
   y = codeSnippet(doc, [
     'Implementation Snippet:',
-    'import math',
-    'def local_buckling_capacity(Mbe, Mol):',
-    '    # Cl. 7.2.2.3 - DSM local buckling capacity',
-    '    lambda_l = math.sqrt(Mbe / Mol)',
-    '    if lambda_l <= 0.776:',
-    '        return Mbe',
-    '    else:',
-    '        ratio = Mol / Mbe',
-    '        return (1 - 0.15 * ratio**0.4) * ratio**0.4 * Mbe',
+    'def section_moment_capacity(Ze, fy):',
+    '    # Cl. 3.3.2.2 - nominal section moment capacity',
+    '    Ms = Ze * fy / 1e6  # N.mm -> kN.m',
+    '    return Ms',
   ], y);
 
   // 6.3 Distortional Buckling
-  y = subHeading(doc, '6.3  Distortional Buckling Capacity (Mbd)  [Cl. 7.2.2.4]', y);
+  y = subHeading(doc, '6.3  Distortional Buckling (Mb,dist)  [Cl. 3.3.3.3(a)]', y);
 
   if (bk.fod > 0 && bk.Mod > 0) {
     y = equationBlock(doc,
       'Distortional Slenderness (lambda_d)',
-      'Cl. 7.2.2.4',
+      'Cl. 3.3.3.3(8)',
       'lambda_d = sqrt(My / Mod)',
       `lambda_d = sqrt(${fmt(bk.My)} / ${fmt(bk.Mod)})`,
       fmt(cap.lambdaD, 4),
       '', y
     );
 
-    if (cap.lambdaD <= 0.673) {
-      y = bodyText(doc, `lambda_d = ${fmt(cap.lambdaD, 4)} <= 0.673 --> No distortional reduction: Mbd = My`, y, 2);
+    if (cap.lambdaD <= 0.674) {
+      y = bodyText(doc, `lambda_d = ${fmt(cap.lambdaD, 4)} <= 0.674 --> No distortional reduction: Mc = My  [Eq. 3.3.3.3(3)]`, y, 2);
     } else {
-      y = bodyText(doc, `lambda_d = ${fmt(cap.lambdaD, 4)} > 0.673 --> Distortional reduction applies`, y, 2);
+      y = bodyText(doc, `lambda_d = ${fmt(cap.lambdaD, 4)} > 0.674 --> Distortional reduction per Eq. 3.3.3.3(4)`, y, 2);
     }
 
     y = equationBlock(doc,
-      'Mbd',
-      'Cl. 7.2.2.4',
-      cap.lambdaD <= 0.673
-        ? 'Mbd = My  (lambda_d <= 0.673)'
-        : 'Mbd = [1 - 0.22 x (Mod/My)^0.5] x (Mod/My)^0.5 x My',
-      cap.lambdaD <= 0.673
-        ? `Mbd = My = ${fmt(bk.My)}`
-        : `Mod/My = ${fmt(bk.Mod / bk.My, 4)}, My = ${fmt(bk.My)}`,
+      'Mb,dist',
+      'Cl. 3.3.3.3(a)',
+      cap.lambdaD <= 0.674
+        ? 'Mc = My, Mb = Zc x fc = Mc  (lambda_d <= 0.674)'
+        : 'Mc = (My/lambda_d)(1 - 0.22/lambda_d), Mb = Zc x fc = Mc',
+      cap.lambdaD <= 0.674
+        ? `Mb,dist = My = ${fmt(bk.My)}`
+        : `My = ${fmt(bk.My)}, lambda_d = ${fmt(cap.lambdaD, 4)}`,
       fmt(cap.Mbd),
       'kN.m', y
     );
@@ -837,17 +831,18 @@ export function exportSimpleCFSPdf(
     y = codeSnippet(doc, [
       'Implementation Snippet:',
       'import math',
-      'def distortional_buckling_capacity(My, Mod):',
-      '    # Cl. 7.2.2.4 - DSM distortional buckling capacity',
+      'def distortional_buckling(My, Mod):',
+      '    # Cl. 3.3.3.3(a) - distortional buckling for C-section',
       '    lambda_d = math.sqrt(My / Mod)',
-      '    if lambda_d <= 0.673:',
-      '        return My',
+      '    if lambda_d <= 0.674:',
+      '        Mc = My',
       '    else:',
-      '        ratio = Mod / My',
-      '        return (1 - 0.22 * ratio**0.5) * ratio**0.5 * My',
+      '        Mc = (My/lambda_d) * (1 - 0.22/lambda_d)',
+      '    # Zc = Zf for standard C-section (k0 > 0)',
+      '    return Mc  # Mb,dist = Zc x fc = Mc',
     ], y);
   } else {
-    y = bodyText(doc, 'No distortional buckling mode (unlipped section). Mbd is excluded from the governing check.', y);
+    y = bodyText(doc, 'No distortional buckling mode (unlipped section). Mb,dist is excluded from the governing check.', y);
     y += 2;
   }
 
@@ -855,17 +850,17 @@ export function exportSimpleCFSPdf(
   //  7.0  GOVERNING LIMIT STATE (BENDING)
   // ================================================================
 
-  y = heading(doc, '7.0', 'GOVERNING LIMIT STATE (BENDING)', y, 'Cl. 7.2.2');
+  y = heading(doc, '7.0', 'GOVERNING LIMIT STATE (BENDING)', y, 'Cl. 3.3.1 / 3.3.3.1');
 
-  y = bodyText(doc, 'The nominal member moment capacity is the minimum of the local and distortional buckling capacities:', y);
+  y = bodyText(doc, 'The governing nominal moment capacity per Cl. 3.3.3.1:', y);
   y += 1;
 
-  y = bodyText(doc, 'Mb = min(Mbl, Mbd)  [Mbd excluded if unlipped]', y, 2);
+  y = bodyText(doc, 'Mn = min(Ms, Mb_ltb, Mb_dist)  [Mb,dist excluded if unlipped]', y, 2);
   y += 2;
 
-  y = paramRow(doc, 'Mbe (LTB capacity)', fmt(cap.Mbe), 'kN.m', y);
-  y = paramRow(doc, 'Mbl (local buckling capacity)', fmt(cap.Mbl), 'kN.m', y);
-  y = paramRow(doc, 'Mbd (distortional capacity)', cap.Mbd > 0 ? fmt(cap.Mbd) : 'N/A (unlipped)', 'kN.m', y);
+  y = paramRow(doc, 'Mb,ltb (lateral-torsional, Cl.3.3.3.2)', fmt(cap.Mbe), 'kN.m', y);
+  y = paramRow(doc, 'Ms (section capacity, Cl.3.3.2.2)', fmt(cap.Mbl), 'kN.m', y);
+  y = paramRow(doc, 'Mb,dist (distortional, Cl.3.3.3.3)', cap.Mbd > 0 ? fmt(cap.Mbd) : 'N/A (unlipped)', 'kN.m', y);
   y += 1;
   y = paramRow(doc, 'Governing mode', govModeBending, '', y, true);
   y = paramRow(doc, 'Mn = Mb', fmt(cap.Mn), 'kN.m', y, true);
@@ -1034,7 +1029,7 @@ export function exportSimpleCFSPdf(
 
   y = equationBlock(doc,
     'Design Bending Capacity',
-    'Cl. 7.2.2',
+    'Cl. 3.3',
     'phi_Mn = phi_b x Mn',
     `phi_Mn = ${fmt(cap.phi_b, 2)} x ${fmt(cap.Mn)}`,
     fmt(cap.phiMn),
@@ -1044,7 +1039,7 @@ export function exportSimpleCFSPdf(
   y = codeSnippet(doc, [
     'Implementation Snippet:',
     'def design_bending_capacity(phi_b, Mn):',
-    '    # Cl. 7.2.2 - design bending capacity',
+    '    # Cl. 3.3 - design bending capacity',
     '    # phi_b = 0.90 per AS/NZS 4600:2018',
     '    return phi_b * Mn',
   ], y);
@@ -1097,7 +1092,7 @@ export function exportSimpleCFSPdf(
 
   y = heading(doc, '10.0', 'CONCLUSION', y);
 
-  y = bodyText(doc, `The design bending capacity of the ${sectionDesc} section has been determined using the Direct Strength Method per AS/NZS 4600:2018 Clause 7.2.2.`, y);
+  y = bodyText(doc, `The design bending capacity of the ${sectionDesc} section has been determined using the Effective Width Method (EWM) per AS/NZS 4600:2018 Section 3.3.`, y);
   y += 2;
 
   y = bodyText(doc, `The governing bending failure mode is ${govModeBending} with a nominal moment capacity Mn = ${fmt(cap.Mn)} kN.m and a design capacity phi_Mn = ${fmt(cap.phiMn)} kN.m (phi_b = ${fmt(cap.phi_b, 2)}).`, y);

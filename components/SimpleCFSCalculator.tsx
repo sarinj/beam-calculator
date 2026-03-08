@@ -328,12 +328,12 @@ function SummaryBox({ result }: { result: DSMDesignResult }) {
         Governing mode: {capacity.governingMode.replace('-', '-​')}
       </div>
 
-      {/* DSM capacities bar */}
+      {/* Section 3.3 capacities bar */}
       <div className="space-y-1.5">
         {[
-          { label: 'Mbe (LTB)', value: capacity.Mbe, color: 'bg-amber-400' },
-          { label: 'Mbl (Local)', value: capacity.Mbl, color: 'bg-blue-400' },
-          ...(capacity.Mbd > 0 ? [{ label: 'Mbd (Distortional)', value: capacity.Mbd, color: 'bg-green-400' }] : []),
+          { label: 'Mb,ltb (Cl.3.3.3.2)', value: capacity.Mbe, color: 'bg-amber-400' },
+          { label: 'Ms (Cl.3.3.2.2)', value: capacity.Mbl, color: 'bg-blue-400' },
+          ...(capacity.Mbd > 0 ? [{ label: 'Mb,dist (Cl.3.3.3.3)', value: capacity.Mbd, color: 'bg-green-400' }] : []),
         ].map((item) => {
           const maxVal = Math.max(capacity.Mbe, capacity.Mbl, capacity.Mbd, buckling.My) || 1;
           const pct = (item.value / maxVal) * 100;
@@ -352,9 +352,9 @@ function SummaryBox({ result }: { result: DSMDesignResult }) {
       {/* Slenderness */}
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div className="p-2 rounded bg-white/60 dark:bg-slate-800/60">
-          <span className="text-slate-500">λl (local):</span>
+          <span className="text-slate-500">λb (LTB):</span>
           <span className="ml-1 font-mono font-semibold text-slate-700 dark:text-slate-200">{capacity.lambdaL.toFixed(4)}</span>
-          <span className="ml-1 text-slate-400">{capacity.lambdaL <= 0.776 ? '≤ 0.776 ✓' : '> 0.776'}</span>
+          <span className="ml-1 text-slate-400">{capacity.lambdaL <= 0.60 ? '≤ 0.60 ✓' : '> 0.60'}</span>
         </div>
         <div className="p-2 rounded bg-white/60 dark:bg-slate-800/60">
           <span className="text-slate-500">λd (dist.):</span>
@@ -362,7 +362,7 @@ function SummaryBox({ result }: { result: DSMDesignResult }) {
             {capacity.lambdaD > 0 ? capacity.lambdaD.toFixed(4) : 'N/A'}
           </span>
           {capacity.lambdaD > 0 && (
-            <span className="ml-1 text-slate-400">{capacity.lambdaD <= 0.673 ? '≤ 0.673 ✓' : '> 0.673'}</span>
+            <span className="ml-1 text-slate-400">{capacity.lambdaD <= 0.674 ? '≤ 0.674 ✓' : '> 0.674'}</span>
           )}
         </div>
       </div>
@@ -649,10 +649,10 @@ export function SimpleCFSCalculator() {
             </Link>
             <div>
               <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-                Simple CFS – DSM Flexural & Shear Capacity
+                Simple CFS – Section 3.3 Bending & Shear Capacity
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                AS/NZS 4600:2018 · Direct Strength Method + Cl. 3.3.4 Shear · Single C-Section
+                AS/NZS 4600:2018 · Effective Width Method (Cl. 3.3) + Cl. 3.3.4 Shear · Single C-Section
               </p>
             </div>
           </div>
@@ -905,18 +905,19 @@ export function SimpleCFSCalculator() {
 
                 {/* Method note */}
                 <div className="text-xs text-slate-400 dark:text-slate-500 bg-white/60 dark:bg-slate-800/60 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
-                  <p className="font-semibold mb-1">Design Method: AS/NZS 4600:2018</p>
+                  <p className="font-semibold mb-1">Design Method: AS/NZS 4600:2018 Section 3.3</p>
                   <ul className="list-disc list-inside space-y-0.5">
-                    <li><strong>Bending – Direct Strength Method (DSM) only:</strong></li>
-                    <li>Cl. 7.2.2.2 – Lateral-torsional buckling (Mbe)</li>
-                    <li>Cl. 7.2.2.3 – Local buckling with LTB interaction (Mbl)</li>
-                    <li>Cl. 7.2.2.4 – Distortional buckling (Mbd)</li>
+                    <li><strong>Bending – Effective Width Method (EWM):</strong></li>
+                    <li>Cl. 2.2.1.2 – Effective widths of compressed elements</li>
+                    <li>Cl. 3.3.2.2 – Section moment capacity Ms = Ze × fy</li>
+                    <li>Cl. 3.3.3.2.1 – Lateral-torsional buckling (Mb,ltb)</li>
+                    <li>Cl. 3.3.3.3(a) – Distortional buckling (Mb,dist)</li>
+                    <li>Cl. 3.3.3.1 – Governing Mb = min(Ms, Mb,ltb, Mb,dist)</li>
                     <li>Cl. D2.1.1 – Elastic LTB moment (Mo)</li>
                     <li><strong>Shear – Cl. 3.3.4:</strong></li>
                     <li>Cl. 3.3.4 – Shear capacity of webs (τcr, kv, λv)</li>
                     <li>kv per aspect ratio for stiffened/unstiffened webs</li>
                     <li>Capacity reduction factor ϕ = 0.90</li>
-                    <li>No Effective Width Method (EWM) used for bending</li>
                     <li>No AISI specification referenced</li>
                   </ul>
                 </div>

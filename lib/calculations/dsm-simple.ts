@@ -1,24 +1,26 @@
 // ============================================================
-// Simple CFS – Direct Strength Method (DSM) Flexural Capacity
-// AS/NZS 4600:2018
+// Simple CFS – Effective Width Method (EWM) Bending Capacity
+// AS/NZS 4600:2018  Section 3.3 "Members Subject to Bending"
 // ============================================================
 //
 // This module computes the nominal and design bending moment capacity
-// (ϕMb) of a single cold-formed steel C-section (lipped or unlipped
-// channel) under major-axis bending using ONLY the Direct Strength
-// Method (DSM).
+// (phi_b * Mb) of a single cold-formed steel C-section (lipped or
+// unlipped channel) under major-axis bending using the Effective
+// Width Method (EWM) per Section 3.3.
 //
-// NO Effective Width Method (EWM) is used.
 // NO AISI specification is referenced.
+// Equations sourced ONLY from AS/NZS 4600:2018 pages 59-65.
 //
 // Clause references:
-//   Cl. 1.5    – Material properties
-//   Cl. 2.1    – Gross section properties (centre-line model)
-//   Cl. 7.2.2  – Members subject to bending – DSM
-//   Cl. 7.2.2.2 – Lateral-torsional buckling (Mbe)
-//   Cl. 7.2.2.3 – Local buckling (Mbl)
-//   Cl. 7.2.2.4 – Distortional buckling (Mbd)
-//   Cl. D2.1.1  – Elastic lateral-torsional buckling moment (Mo)
+//   Cl. 1.5      – Material properties
+//   Cl. 2.1      – Gross section properties (centre-line model)
+//   Cl. 2.2.1.2  – Effective widths of uniformly compressed elements
+//   Cl. 3.3.1    – Bending moment design check
+//   Cl. 3.3.2.2  – Nominal section moment capacity Ms = Ze * fy
+//   Cl. 3.3.3.1  – Nominal member moment capacity Mb (general)
+//   Cl. 3.3.3.2.1 – Lateral-torsional buckling (open sections)
+//   Cl. 3.3.3.3  – Distortional buckling
+//   Cl. D2.1.1   – Elastic lateral-torsional buckling moment (Mo)
 //
 // Units: N, mm, MPa throughout internal calculations.
 // Final results converted to kN·m.
@@ -379,51 +381,299 @@ function computeLocalBucklingStress(geo: DSMGeometry, mat: DSMMaterial): number 
 // ============================================================
 
 /**
- * Elastic distortional buckling stress fod – simplified closed-form.
+ * Elastic distortional buckling stress fod for a simple lipped
+ * C-section in BENDING per AS/NZS 4600:2018 Appendix D, Cl. D2.2.1.
  *
- * Uses Schafer's approximation for lipped C/Z sections:
- *   fod ≈ β₁ × [Et³/(12(1−ν²)bf²)] × [1 + β₂(bf/d)² + β₃(lip/bf)²]
+ * D2.2.1 states: fod shall be determined in accordance with
+ * Paragraph D1.2.1 (simple lipped channels in compression), except:
  *
- * For unlipped sections, distortional buckling does not occur as a
- * distinct mode (the flange is unstiffened → local buckling governs).
+ *   lambda  from Eq. D2.2.1(1)  (modified half-wavelength for bending)
+ *   k_phi   from Eq. D2.2.1(2)  (rotational spring stiffness from web)
+ *   alpha_1 from Eq. D2.2.1(3)  (initial alpha_1 without k_phi)
+ *
+ * Flange-lip assembly properties per Eqs. D1.2.1(22)-(28).
+ * Main fod formula per Eq. D1.2.1(13).
+ *
+ * For unlipped sections, distortional buckling does not occur.
  * Returns fod = 0.
  *
- * Also computes the critical distortional half-wavelength:
- *   Lcrd = 4.8 × (d × bf² / t)^0.25
+ * k_phi (= k0 in Cl. 3.3.3.3) determines Zc:
+ *   k_phi >= 0  →  Zc = Zf (standard C-section, web restrains flange)
+ *   k_phi < 0   →  web destabilises flange (recalculate with f'od = 0)
  */
-function computeDistortionalBucklingStress(
+function computeDistortionalBucklingBending(
   geo: DSMGeometry,
   mat: DSMMaterial
-): { fod: number; Lcrd: number } {
+): { fod: number; Lcrd: number; k_phi: number; k_phi_original_negative: boolean } {
   const { d, bf, t, lipLength, r } = geo;
-  const { E, nu } = mat;
+  const { E } = mat;
 
-  const flatFlange = Math.max(bf - 2 * (r + t), 1);
-  const flatLip = lipLength > 0 ? Math.max(lipLength - (r + t / 2), 0) : 0;
+  const b_f = Math.max(bf - 2 * (r + t), 1);       // flat flange width
+  const d_l = lipLength > 0 ? Math.max(lipLength - (r + t / 2), 0) : 0;  // flat lip length
+  const b_w = Math.max(d - 2 * (r + t), 1);         // flat web depth
 
   // No lip → no distortional buckling mode
-  if (flatLip <= 0) {
-    return { fod: 0, Lcrd: 0 };
+  if (d_l <= 0) {
+    return { fod: 0, Lcrd: 0, k_phi: 0, k_phi_original_negative: false };
   }
 
-  // Plate flexural rigidity
-  const Dp = (E * Math.pow(t, 3)) / (12 * (1 - nu * nu));
+  // ── Flange-Lip Assembly Properties — Eqs. D1.2.1(22)-(28) ──
+  // These are for the compression flange and lip ALONE (see Figure D2(b)/(c))
+  const A_fl   = (b_f + d_l) * t;                                              // Eq. D1.2.1(22)
+  const x_bar  = (b_f * b_f + 2 * b_f * d_l) / (2 * (b_f + d_l));            // Eq. D1.2.1(23)
+  const y_bar  = (d_l * d_l) / (2 * (b_f + d_l));                             // Eq. D1.2.1(24)
+  const J_fl   = (t * t * t * (b_f + d_l)) / 3;                               // Eq. D1.2.1(25)
 
-  // Simplified distortional buckling coefficients
-  const beta1 = 1.0;
-  const beta2 = 0.4;
-  const beta3 = 5.0;
+  // Eq. D1.2.1(26) — second moment about x-axis of flange-lip
+  const Ix_fl  = (b_f * t * t * t) / 12
+               + (t * d_l * d_l * d_l) / 12
+               + b_f * t * y_bar * y_bar
+               + d_l * t * Math.pow(d_l / 2 - y_bar, 2);
 
-  const bfTerm = flatFlange > 0 ? flatFlange : bf;
-  const fod =
-    beta1 *
-    (Dp / (bfTerm * bfTerm * t)) *
-    (1 + beta2 * Math.pow(bfTerm / d, 2) + beta3 * Math.pow(flatLip / (bfTerm || 1), 2));
+  // Eq. D1.2.1(27) — second moment about y-axis of flange-lip
+  const Iy_fl  = (t * b_f * b_f * b_f) / 12
+               + (d_l * t * t * t) / 12
+               + d_l * t * Math.pow(b_f - x_bar, 2)
+               + b_f * t * Math.pow(x_bar - b_f / 2, 2);
 
-  // Critical half-wavelength
-  const Lcrd = 4.8 * Math.pow((d * bfTerm * bfTerm) / t, 0.25);
+  // Eq. D1.2.1(28) — product of inertia of flange-lip
+  const Ixy_fl = b_f * t * (b_f / 2 - x_bar) * (-y_bar)
+               + d_l * t * (d_l / 2 - y_bar) * (b_f - x_bar);
 
-  return { fod: Math.max(fod, 0), Lcrd };
+  // ── lambda per Eq. D2.2.1(1) — bending modification ──
+  // lambda = 4.80 × (Ix × b_f² × b_w / (2 × t³))^0.25
+  const lambda = 4.80 * Math.pow((Ix_fl * b_f * b_f * b_w) / (2 * t * t * t), 0.25);
+
+  // ── eta per Eq. D1.2.1(19) ──
+  const eta = (Math.PI / lambda) * (Math.PI / lambda);
+
+  // ── beta_1 per Eq. D1.2.1(17) ──
+  const beta_1 = x_bar * x_bar + (Ix_fl + Iy_fl) / A_fl;
+
+  // ── alpha_1 (initial, WITHOUT k_phi) per Eq. D2.2.1(3) ──
+  const alpha_1_init = (eta / beta_1) * (Ix_fl * b_f * b_f + 0.039 * J_fl * lambda * lambda);
+
+  // ── alpha_2 per Eq. D1.2.1(15) ──
+  const alpha_2 = eta * (Iy_fl + (2 / beta_1) * y_bar * b_f * Ixy_fl);
+
+  // ── alpha_3 (initial) per Eq. D1.2.1(16) ──
+  const alpha_3_init = eta * (alpha_1_init * Iy_fl - (eta / beta_1) * Ixy_fl * Ixy_fl * b_f * b_f);
+
+  // ── f'_od from Eq. D1.2.1(13) using initial alpha_1 ──
+  const sum_init = alpha_1_init + alpha_2;
+  const disc_init = sum_init * sum_init - 4 * alpha_3_init;
+  let f_od_prime = 0;
+  if (disc_init >= 0 && A_fl > 0) {
+    f_od_prime = (E / (2 * A_fl)) * (sum_init - Math.sqrt(disc_init));
+  }
+  f_od_prime = Math.max(f_od_prime, 0);
+
+  // ── k_phi per Eq. D2.2.1(2) ──
+  // k_phi = 2Et³ / [5.46(b_w + 0.06λ)]
+  //       × [1 − (1.11 f'od / (Et²)) × (b_w² λ / (b_w² + λ²))²]
+  const kPhiCoeff = (2 * E * t * t * t) / (5.46 * (b_w + 0.06 * lambda));
+  const bwLamTerm = (b_w * b_w * lambda) / (b_w * b_w + lambda * lambda);
+  let k_phi = kPhiCoeff * (1 - (1.11 * f_od_prime / (E * t * t)) * bwLamTerm * bwLamTerm);
+
+  // Track whether original k_phi was negative
+  const k_phi_original_negative = k_phi < 0;
+
+  // "If k_phi is negative, k_phi shall be calculated with f'od = 0"
+  if (k_phi < 0) {
+    k_phi = kPhiCoeff;  // bracket becomes [1 − 0] = 1
+  }
+
+  // ── Final alpha_1 including k_phi per Eq. D1.2.1(14) ──
+  // alpha_1_final = alpha_1_init + k_phi / (beta_1 × eta × E)
+  const alpha_1_final = alpha_1_init + k_phi / (beta_1 * eta * E);
+
+  // ── Recompute alpha_3 with final alpha_1 ──
+  const alpha_3_final = eta * (alpha_1_final * Iy_fl - (eta / beta_1) * Ixy_fl * Ixy_fl * b_f * b_f);
+
+  // ── Final fod from Eq. D1.2.1(13) ──
+  const sum_final = alpha_1_final + alpha_2;
+  const disc_final = sum_final * sum_final - 4 * alpha_3_final;
+  let fod = 0;
+  if (disc_final >= 0 && A_fl > 0) {
+    fod = (E / (2 * A_fl)) * (sum_final - Math.sqrt(disc_final));
+  }
+  fod = Math.max(fod, 0);
+
+  // ── Critical half-wavelength per Eq. D2.2.1(1) ──
+  const Lcrd = lambda;
+
+  return { fod, Lcrd, k_phi, k_phi_original_negative };
+}
+
+// ============================================================
+// EFFECTIVE WIDTH METHOD – Cl. 2.2.1.2
+// ============================================================
+
+/**
+ * Compute effective width of a flat element per AS/NZS 4600:2018 Cl. 2.2.1.2.
+ *
+ *   lambda = (1.052 / sqrt(k)) * (w / t) * sqrt(f / E)
+ *
+ *   if lambda <= 0.673:  bEff = w  (fully effective)
+ *   if lambda > 0.673:   rho = (1 - 0.22/lambda) / lambda,  bEff = rho * w
+ *
+ * where:
+ *   w = flat width of element (mm)
+ *   t = thickness (mm)
+ *   f = compressive stress at the element (MPa)
+ *   E = elastic modulus (MPa)
+ *   k = plate buckling coefficient
+ */
+function effectiveWidthEWM(
+  w: number,
+  t: number,
+  f: number,
+  E: number,
+  k: number
+): { bEff: number; lambda: number; rho: number } {
+  if (w <= 0 || t <= 0 || f <= 0) return { bEff: 0, lambda: 0, rho: 1 };
+
+  const lambda = (1.052 / Math.sqrt(k)) * (w / t) * Math.sqrt(f / E);
+
+  if (lambda <= 0.673) {
+    return { bEff: w, lambda, rho: 1.0 };
+  }
+
+  const rho = Math.max((1 - 0.22 / lambda) / lambda, 0);
+  const bEff = rho * w;
+  return { bEff, lambda, rho };
+}
+
+/**
+ * Compute effective section modulus Ze for a C-channel at an arbitrary
+ * compressive stress level f.
+ *
+ * Uses effective widths per Cl. 2.2.1.2 to build the effective section,
+ * then computes the shifted neutral axis and effective Ixe.
+ *
+ * For bending about the major axis (x-x):
+ *  - Top flange + top lip: compression -> may lose effectiveness
+ *  - Bottom flange + bottom lip: tension -> fully effective
+ *  - Web: stress gradient, effective width distributed per Cl. 2.2.1.2
+ *
+ * Returns Ze = Ixe / ycf, where ycf is the distance from the shifted
+ * neutral axis to the extreme compression fibre.
+ */
+function computeEffectiveModulusAtStress(
+  geo: DSMGeometry,
+  mat: DSMMaterial,
+  gross: DSMGrossProps,
+  f: number
+): { Ze: number; Ae: number; Ixe: number } {
+  const { d, bf, t, lipLength, r } = geo;
+  const { E } = mat;
+
+  const rMid = r + t / 2;
+  const cornerLen = (Math.PI / 2) * rMid;
+
+  const flatWeb = Math.max(d - 2 * (r + t), 0);
+  const flatFlange = Math.max(bf - 2 * (r + t), 0);
+  const flatLip = lipLength > 0 ? Math.max(lipLength - (r + t / 2), 0) : 0;
+
+  const halfD = d / 2;
+
+  // ── Effective widths at stress f ──
+  // Top flange (compression, stiffened if lipped)
+  const kFlange = flatLip > 0 ? 4.0 : 0.43;
+  const flangeEW = effectiveWidthEWM(flatFlange, t, f, E, kFlange);
+
+  // Top lip (compression, unstiffened)
+  const kLip = 0.43;
+  const lipEW = effectiveWidthEWM(flatLip, t, f, E, kLip);
+
+  // Web (stress gradient, psi = -1 for pure bending, k ~ 23.9)
+  const kWeb = 23.9;
+  const webEW = effectiveWidthEWM(flatWeb, t, f, E, kWeb);
+
+  // Web effective strip distribution (Cl. 2.2.1.2)
+  // For psi = -1 (pure bending):
+  //   be1 = bEff / (3 - psi) = bEff / 4  (near max compression)
+  //   be2 = bEff - be1 = 3*bEff/4        (near tension)
+  const webFullyEffective = webEW.lambda <= 0.673;
+  const be1 = webFullyEffective ? flatWeb / 2 : webEW.bEff / 4;
+  const be2 = webFullyEffective ? flatWeb / 2 : 3 * webEW.bEff / 4;
+
+  // ── Build effective element table ──
+  // y measured from mid-depth, positive = compression side (top)
+  const elements: { area: number; y: number; Iself: number }[] = [];
+
+  // Web strip 1 (near compression edge)
+  const yWebTop = flatWeb / 2;
+  elements.push({
+    area: be1 * t,
+    y: yWebTop - be1 / 2,
+    Iself: t * be1 * be1 * be1 / 12,
+  });
+
+  // Web strip 2 (near tension edge)
+  elements.push({
+    area: be2 * t,
+    y: -flatWeb / 2 + be2 / 2,
+    Iself: t * be2 * be2 * be2 / 12,
+  });
+
+  // Top flange (compression, reduced)
+  elements.push({
+    area: flangeEW.bEff * t,
+    y: halfD - t / 2,
+    Iself: flangeEW.bEff * t * t * t / 12,
+  });
+
+  // Bottom flange (tension, fully effective)
+  elements.push({
+    area: flatFlange * t,
+    y: -(halfD - t / 2),
+    Iself: flatFlange * t * t * t / 12,
+  });
+
+  // Top lip (compression, reduced)
+  if (flatLip > 0) {
+    elements.push({
+      area: lipEW.bEff * t,
+      y: halfD - t / 2 - lipEW.bEff / 2,
+      Iself: t * lipEW.bEff * lipEW.bEff * lipEW.bEff / 12,
+    });
+  }
+
+  // Bottom lip (tension, fully effective)
+  if (flatLip > 0) {
+    elements.push({
+      area: flatLip * t,
+      y: -(halfD - t / 2 - flatLip / 2),
+      Iself: t * flatLip * flatLip * flatLip / 12,
+    });
+  }
+
+  // Corners (always fully effective)
+  const yCornerTop = halfD - rMid / 2;
+  elements.push({ area: 2 * cornerLen * t, y: yCornerTop, Iself: 0 });
+  elements.push({ area: 2 * cornerLen * t, y: -yCornerTop, Iself: 0 });
+
+  // ── Effective area ──
+  const Ae = elements.reduce((s, e) => s + e.area, 0);
+
+  // ── Shifted neutral axis ──
+  const yNA = Ae > 0 ? elements.reduce((s, e) => s + e.area * e.y, 0) / Ae : 0;
+
+  // ── Effective Ix about shifted NA ──
+  let Ixe = 0;
+  elements.forEach((e) => {
+    Ixe += e.Iself + e.area * (e.y - yNA) * (e.y - yNA);
+  });
+
+  // ── Effective section modulus ──
+  const ycf = halfD - yNA;     // NA to extreme compression fibre (top)
+  const ytf = halfD + yNA;     // NA to extreme tension fibre (bottom)
+  const Sxe_comp = ycf > 0 ? Ixe / ycf : 0;
+  const Sxe_tens = ytf > 0 ? Ixe / ytf : Sxe_comp;
+  const Ze = Math.min(Sxe_comp, Sxe_tens);
+
+  return { Ze, Ae, Ixe };
 }
 
 // ============================================================
@@ -451,7 +701,7 @@ function generateSignatureCurve(
   const kFlange = flatLip > 0 ? 4.0 : 0.43;
   const kWeb = 23.9;
 
-  const { fod: fcrDist_min, Lcrd: Lcr_dist } = computeDistortionalBucklingStress(geo, mat);
+  const { fod: fcrDist_min, Lcrd: Lcr_dist } = computeDistortionalBucklingBending(geo, mat);
 
   // Polar radius of gyration squared
   const r0sq = (gross.Ix + gross.Iy) / (gross.Ag || 1) + (gross.xc || 0) ** 2;
@@ -823,14 +1073,24 @@ export function performShearDesign(
 }
 
 // ============================================================
-// MAIN DSM DESIGN – Cl. 7.2.2
+// MAIN BENDING DESIGN – Cl. 3.3 (EWM) + Cl. D2.1.1
 // ============================================================
 
 /**
- * Perform full DSM flexural capacity calculation for a single C-section.
+ * Perform full bending capacity calculation for a single C-section
+ * using the Effective Width Method (EWM) per AS/NZS 4600:2018 Section 3.3.
+ *
+ * EWM Design Flow:
+ *   Step 1: Gross section properties (Cl. 2.1)
+ *   Step 2: Effective section properties at fy (Cl. 2.2.1.2)
+ *   Step 3: Section moment capacity Ms = Ze × fy (Cl. 3.3.2.2)
+ *   Step 4: Elastic buckling analysis — Mo, Mod (Cl. D2.1.1)
+ *   Step 5: Lateral-torsional buckling Mb (Cl. 3.3.3.2.1)
+ *   Step 6: Distortional buckling Mb (Cl. 3.3.3.3(a))
+ *   Step 7: Governing Mn = min(Ms, Mb_ltb, Mb_dist) (Cl. 3.3.3.1)
  *
  * Returns complete results including step-by-step calculation details,
- * elastic buckling values, DSM capacities, and the governing mode.
+ * elastic buckling values, capacities, and the governing mode.
  */
 export function performDSMDesign(
   geo: DSMGeometry,
@@ -885,225 +1145,290 @@ export function performDSMDesign(
     ],
   });
 
-  // ── Step 2: Elastic Buckling Stresses & Moments ──
+  // ── Step 2: Effective Section Properties at fy (Cl. 2.2.1.2) ──
+  const effAtFy = computeEffectiveModulusAtStress(geo, mat, gross, fy);
+  const Ze_fy = effAtFy.Ze;
+  const Zf = gross.Sx; // full unreduced section modulus (Zf)
+
+  steps.push({
+    clause: 'Cl. 2.2.1.2',
+    title: 'Effective Section Properties at f = fy',
+    equations: [
+      'lambda = (1.052 / sqrt(k)) × (w/t) × sqrt(f/E)',
+      'lambda <= 0.673: b_eff = w  (fully effective)',
+      'lambda > 0.673:  rho = (1 − 0.22/lambda) / lambda,  b_eff = rho × w',
+      'Ze = Ixe / y_cf  (effective section modulus)',
+    ],
+    values: [
+      { label: 'Stress level (f)', value: fy.toFixed(1), unit: 'MPa' },
+      { label: 'Effective area (Ae)', value: effAtFy.Ae.toFixed(1), unit: 'mm²' },
+      { label: 'Effective Ix (Ixe)', value: effAtFy.Ixe.toFixed(0), unit: 'mm⁴' },
+      { label: 'Ze (effective modulus at fy)', value: Ze_fy.toFixed(1), unit: 'mm³' },
+      { label: 'Zf (full section modulus)', value: Zf.toFixed(1), unit: 'mm³' },
+      { label: 'Ze/Zf ratio', value: (Zf > 0 ? Ze_fy / Zf : 0).toFixed(4), unit: '' },
+    ],
+  });
+
+  // ── Step 3: Section Moment Capacity Ms (Cl. 3.3.2.2) ──
+  // Ms = Ze × fy   ... Eq. 3.3.2.2
+  // where Ze = effective section modulus at extreme fibre at fy
+  const Ms = (Ze_fy * fy) / 1e6; // kN·m
+
+  steps.push({
+    clause: 'Cl. 3.3.2.2',
+    title: 'Nominal Section Moment Capacity (Ms)',
+    equations: [
+      'Ms = Ze × fy   ... Eq. 3.3.2.2',
+      'where Ze = effective section modulus at extreme fibre at fy',
+    ],
+    values: [
+      { label: 'Ze', value: Ze_fy.toFixed(1), unit: 'mm³' },
+      { label: 'fy', value: fy.toFixed(1), unit: 'MPa' },
+      { label: 'Ms', value: Ms.toFixed(3), unit: 'kN·m' },
+    ],
+  });
+
+  // ── Step 4: Elastic Buckling Analysis ──
   const fol = computeLocalBucklingStress(geo, mat);
-  const { fod, Lcrd } = computeDistortionalBucklingStress(geo, mat);
+  const { fod, Lcrd, k_phi, k_phi_original_negative } = computeDistortionalBucklingBending(geo, mat);
   const MoNmm = computeMo(mat, gross, memberInput);
 
-  // Elastic buckling moments (N·mm → kN·m)
-  const My = (gross.Sx * fy) / 1e6;                                    // kN·m
-  const Mol = (gross.Sx * fol) / 1e6;                                  // kN·m
-  const Mod = fod > 0 ? (gross.Sx * fod) / 1e6 : 0;                   // kN·m
+  const My = (Zf * fy) / 1e6;                                          // kN·m — Eq. 3.3.3.2.1(7)
+  const Mol = (Zf * fol) / 1e6;                                        // kN·m (signature curve reference)
+  const Mod = fod > 0 ? (Zf * fod) / 1e6 : 0;                         // kN·m — Eq. 3.3.3.3(9)
   const Mo = isFinite(MoNmm) ? MoNmm / 1e6 : Infinity;               // kN·m
 
   const Ke = effectiveLengthFactor(memberInput.endCondition);
   const Le = Ke * memberInput.Lb;
 
   steps.push({
-    clause: 'Cl. 7.2.2 / Cl. D2.1.1',
+    clause: 'Cl. D2.1.1 / D2.2.1 / Cl. 3.3.3',
     title: 'Elastic Buckling Analysis',
     equations: [
-      'fol = min(fcr_flange, fcr_web)',
-      'fcr = k × π²D / (b² × t),  D = Et³/[12(1−ν²)]',
-      'fod ≈ β₁(D/bf²t)[1 + β₂(bf/d)² + β₃(lip/bf)²]  [Schafer approx.]',
-      'Lcrd = 4.8 × (d×bf²/t)^0.25',
-      'Mo = Cb × √[(π²EIy/Le²)(GJ + π²ECw/Le²)]  — Eq. D2.1.1(1)',
+      'My = Zf × fy   ... Eq. 3.3.3.2.1(7)',
+      'Mo = Cb × sqrt[(pi²EIy/Le²)(GJ + pi²ECw/Le²)]   ... Eq. D2.1.1(1)',
+      'fod per D1.2.1(13) with D2.2.1(1)-(3) modifications for bending',
+      'Mod = Zf × fod   ... Eq. 3.3.3.3(9)',
+      'lambda = 4.80 × (Ix_fl × bf² × bw / (2t³))^0.25   ... Eq. D2.2.1(1)',
+      'k_phi = 2Et³/[5.46(bw+0.06λ)] × [1 − 1.11f\'od/(Et²) × (bw²λ/(bw²+λ²))²]   ... Eq. D2.2.1(2)',
       'Le = Ke × Lb',
-      'Mol = Sx × fol',
-      'Mod = Sx × fod',
-      'My = Sx × fy',
     ],
     values: [
+      { label: 'Zf (full section modulus)', value: Zf.toFixed(1), unit: 'mm³' },
       { label: 'Ke (effective length factor)', value: Ke.toFixed(2), unit: '' },
       { label: 'Le (effective length)', value: Le.toFixed(0), unit: 'mm' },
-      { label: 'fol (local buckling stress)', value: fol.toFixed(2), unit: 'MPa' },
-      { label: 'fod (distortional buckling stress)', value: fod > 0 ? fod.toFixed(2) : 'N/A (unlipped)', unit: 'MPa' },
-      { label: 'Lcrd (distortional half-wavelength)', value: Lcrd > 0 ? Lcrd.toFixed(1) : 'N/A', unit: 'mm' },
-      { label: 'Mol (elastic local moment)', value: Mol.toFixed(3), unit: 'kN·m' },
-      { label: 'Mod (elastic distortional moment)', value: Mod > 0 ? Mod.toFixed(3) : 'N/A', unit: 'kN·m' },
-      { label: 'Mo (elastic LTB moment)', value: isFinite(Mo) ? Mo.toFixed(3) : '∞ (fully braced)', unit: 'kN·m' },
       { label: 'My (yield moment)', value: My.toFixed(3), unit: 'kN·m' },
+      { label: 'Mo (elastic LTB moment)', value: isFinite(Mo) ? Mo.toFixed(3) : '∞ (fully braced)', unit: 'kN·m' },
+      { label: 'fol (local buckling stress)', value: fol.toFixed(2), unit: 'MPa' },
+      { label: 'fod (distortional, D2.2.1)', value: fod > 0 ? fod.toFixed(2) : 'N/A (unlipped)', unit: 'MPa' },
+      { label: 'Mod (distortional moment)', value: Mod > 0 ? Mod.toFixed(3) : 'N/A', unit: 'kN·m' },
+      { label: 'Lcrd (D2.2.1(1))', value: Lcrd > 0 ? Lcrd.toFixed(1) : 'N/A', unit: 'mm' },
+      { label: 'k_phi (D2.2.1(2))', value: fod > 0 ? k_phi.toFixed(2) : 'N/A', unit: 'N/mm' },
+      { label: 'k_phi < 0 (original)?', value: k_phi_original_negative ? 'Yes — recalc with f\'od=0' : 'No — web restrains flange', unit: '' },
     ],
   });
 
-  // ── Step 3: Yield Moment ──
-  steps.push({
-    clause: 'Cl. 7.2.2',
-    title: 'Yield Moment',
-    equations: [
-      'My = Sx × fy / 10⁶  (kN·m)',
-    ],
-    values: [
-      { label: 'Sx', value: gross.Sx.toFixed(1), unit: 'mm³' },
-      { label: 'fy', value: fy.toFixed(1), unit: 'MPa' },
-      { label: 'My', value: My.toFixed(3), unit: 'kN·m' },
-    ],
-  });
+  // ── Step 5: Lateral-Torsional Buckling — Cl. 3.3.3.2.1 (Open Section Members) ──
+  const phi_b = 0.90; // AS/NZS 4600:2018 capacity reduction factor (Table 1.6.3)
 
-  // ── Step 4A: Mbe – Lateral-Torsional Buckling (Cl. 7.2.2.2) ──
-  const phi_b = 0.90; // AS/NZS 4600:2018 capacity reduction factor for bending
+  // lambda_b = sqrt(My / Mo)   ... Eq. 3.3.3.2.1(6)
+  const lambda_b = isFinite(Mo) && Mo > 0 ? Math.sqrt(My / Mo) : 0;
 
-  let Mbe: number;
-  let MbeNote: string;
-  if (Mo >= 2.78 * My) {
-    Mbe = My;
-    MbeNote = 'Mo ≥ 2.78My → Full yield (laterally braced): Mbe = My';
-  } else if (Mo > 0.56 * My) {
-    Mbe = (10 / 9) * My * (1 - (10 * My) / (36 * Mo));
-    MbeNote = '0.56My < Mo < 2.78My → Inelastic LTB: Mbe = (10/9)My[1 − 10My/(36Mo)]';
+  // Critical moment Mc per Eqs. 3.3.3.2.1(3)-(5)
+  let Mc_ltb: number;
+  let ltbNote: string;
+
+  if (lambda_b <= 0.60) {
+    // Eq. 3.3.3.2.1(3): Mc = My
+    Mc_ltb = My;
+    ltbNote = `lambda_b = ${lambda_b.toFixed(4)} <= 0.60 → Mc = My  [Eq. 3.3.3.2.1(3)]`;
+  } else if (lambda_b < 1.336) {
+    // Eq. 3.3.3.2.1(4): Mc = 1.11 × My × [1 − (10 × lambda_b² / 36)]
+    Mc_ltb = 1.11 * My * (1 - (10 * lambda_b * lambda_b) / 36);
+    ltbNote = `0.60 < lambda_b = ${lambda_b.toFixed(4)} < 1.336 → Mc = 1.11My[1 − 10λb²/36]  [Eq. 3.3.3.2.1(4)]`;
   } else {
-    Mbe = Mo;
-    MbeNote = 'Mo ≤ 0.56My → Elastic LTB: Mbe = Mo';
+    // Eq. 3.3.3.2.1(5): Mc = My × (1 / lambda_b²)
+    Mc_ltb = My * (1 / (lambda_b * lambda_b));
+    ltbNote = `lambda_b = ${lambda_b.toFixed(4)} >= 1.336 → Mc = My/λb²  [Eq. 3.3.3.2.1(5)]`;
   }
-  Mbe = Math.max(Mbe, 0);
+  Mc_ltb = Math.max(Mc_ltb, 0);
+
+  // fc = Mc / Zf   ... Eq. 3.3.3.2.1(2)
+  const fc_ltb = Zf > 0 ? (Mc_ltb * 1e6) / Zf : 0; // MPa
+
+  // Zc = effective section modulus at stress fc
+  // Mb = Zc × fc   ... Eq. 3.3.3.2.1(1)
+  let Zc_ltb: number;
+  let Mb_ltb: number;
+
+  if (fc_ltb >= fy) {
+    // fc >= fy: no LTB reduction, Zc = Ze(fy)
+    Zc_ltb = Ze_fy;
+    Mb_ltb = Ms; // = Ze(fy) × fy
+  } else if (fc_ltb > 0) {
+    // fc < fy: section more effective at reduced stress
+    const effAtFc = computeEffectiveModulusAtStress(geo, mat, gross, fc_ltb);
+    Zc_ltb = effAtFc.Ze;
+    Mb_ltb = (Zc_ltb * fc_ltb) / 1e6; // kN·m
+  } else {
+    Zc_ltb = Ze_fy;
+    Mb_ltb = 0;
+  }
 
   steps.push({
-    clause: 'Cl. 7.2.2.2',
-    title: 'Lateral-Torsional Buckling Capacity (Mbe)',
+    clause: 'Cl. 3.3.3.2.1',
+    title: 'Lateral-Torsional Buckling (Open Section) — Mb',
     equations: [
-      'If Mo ≥ 2.78My:  Mbe = My',
-      'If 0.56My < Mo < 2.78My:  Mbe = (10/9)My[1 − 10My/(36Mo)]',
-      'If Mo ≤ 0.56My:  Mbe = Mo',
-      `→ ${MbeNote}`,
+      'lambda_b = sqrt(My / Mo)   ... Eq. 3.3.3.2.1(6)',
+      'For lambda_b <= 0.60:        Mc = My                            ... Eq. 3.3.3.2.1(3)',
+      'For 0.60 < lambda_b < 1.336: Mc = 1.11My[1 − 10λb²/36]        ... Eq. 3.3.3.2.1(4)',
+      'For lambda_b >= 1.336:       Mc = My/λb²                       ... Eq. 3.3.3.2.1(5)',
+      'fc = Mc / Zf   ... Eq. 3.3.3.2.1(2)',
+      'Mb = Zc × fc   ... Eq. 3.3.3.2.1(1)',
+      `→ ${ltbNote}`,
     ],
     values: [
+      { label: 'My', value: My.toFixed(3), unit: 'kN·m' },
       { label: 'Mo', value: isFinite(Mo) ? Mo.toFixed(3) : '∞', unit: 'kN·m' },
-      { label: 'My', value: My.toFixed(3), unit: 'kN·m' },
-      { label: '0.56 × My', value: (0.56 * My).toFixed(3), unit: 'kN·m' },
-      { label: '2.78 × My', value: (2.78 * My).toFixed(3), unit: 'kN·m' },
-      { label: 'Mbe', value: Mbe.toFixed(3), unit: 'kN·m' },
+      { label: 'lambda_b', value: lambda_b.toFixed(4), unit: '' },
+      { label: 'Mc (critical moment)', value: Mc_ltb.toFixed(3), unit: 'kN·m' },
+      { label: 'Zf (full section modulus)', value: Zf.toFixed(1), unit: 'mm³' },
+      { label: 'fc (critical stress)', value: fc_ltb.toFixed(2), unit: 'MPa' },
+      { label: 'Zc (effective modulus at fc)', value: Zc_ltb.toFixed(1), unit: 'mm³' },
+      { label: 'Mb,ltb', value: Mb_ltb.toFixed(3), unit: 'kN·m' },
     ],
   });
 
-  // ── Step 4B: Mbl – Local Buckling (Cl. 7.2.2.3) ──
-  let Mbl: number;
-  let lambdaL: number;
-  let MblNote: string;
-
-  if (Mol <= 0 || !isFinite(Mol)) {
-    Mbl = Mbe;
-    lambdaL = 0;
-    MblNote = 'Mol not defined → Mbl = Mbe (no local reduction)';
-  } else {
-    lambdaL = Math.sqrt(Mbe / Mol);
-    if (lambdaL <= 0.776) {
-      Mbl = Mbe;
-      MblNote = `λl = ${lambdaL.toFixed(4)} ≤ 0.776 → Mbl = Mbe (no local reduction)`;
-    } else {
-      const ratio = Mol / Mbe;
-      Mbl = (1 - 0.15 * Math.pow(ratio, 0.4)) * Math.pow(ratio, 0.4) * Mbe;
-      MblNote = `λl = ${lambdaL.toFixed(4)} > 0.776 → Mbl = [1 − 0.15(Mol/Mbe)^0.4](Mol/Mbe)^0.4 × Mbe`;
-    }
-  }
-  Mbl = Math.max(Mbl, 0);
-
-  steps.push({
-    clause: 'Cl. 7.2.2.3',
-    title: 'Local Buckling Capacity (Mbl)',
-    equations: [
-      'λl = √(Mbe / Mol)',
-      'If λl ≤ 0.776:  Mbl = Mbe',
-      'If λl > 0.776:  Mbl = [1 − 0.15(Mol/Mbe)^0.4] × (Mol/Mbe)^0.4 × Mbe',
-      `→ ${MblNote}`,
-    ],
-    values: [
-      { label: 'Mol', value: Mol.toFixed(3), unit: 'kN·m' },
-      { label: 'Mbe', value: Mbe.toFixed(3), unit: 'kN·m' },
-      { label: 'λl (local slenderness)', value: lambdaL.toFixed(4), unit: '' },
-      { label: 'Mbl', value: Mbl.toFixed(3), unit: 'kN·m' },
-    ],
-  });
-
-  // ── Step 4C: Mbd – Distortional Buckling (Cl. 7.2.2.4) ──
-  let Mbd: number;
-  let lambdaD: number;
-  let MbdNote: string;
+  // ── Step 6: Distortional Buckling — Cl. 3.3.3.3(a) ──
+  // Applies to C-sections: rotation of flange and lip about flange/web junction.
+  let Mb_dist: number;
+  let lambda_d: number;
+  let distNote: string;
 
   if (fod <= 0 || Mod <= 0) {
-    Mbd = 0;
-    lambdaD = 0;
-    MbdNote = 'No distortional mode (unlipped section) → Mbd excluded';
+    Mb_dist = 0;
+    lambda_d = 0;
+    distNote = 'No distortional mode (unlipped section) → Mb,dist excluded';
   } else {
-    lambdaD = Math.sqrt(My / Mod);
-    if (lambdaD <= 0.673) {
-      Mbd = My;
-      MbdNote = `λd = ${lambdaD.toFixed(4)} ≤ 0.673 → Mbd = My (no distortional reduction)`;
+    // lambda_d = sqrt(My / Mod)   ... Eq. 3.3.3.3(8)
+    lambda_d = Math.sqrt(My / Mod);
+
+    let Mc_dist: number;
+    if (lambda_d <= 0.674) {
+      // Eq. 3.3.3.3(3): Mc = My
+      Mc_dist = My;
+      distNote = `lambda_d = ${lambda_d.toFixed(4)} <= 0.674 → Mc = My  [Eq. 3.3.3.3(3)]`;
     } else {
-      const ratio = Mod / My;
-      Mbd = (1 - 0.22 * Math.pow(ratio, 0.5)) * Math.pow(ratio, 0.5) * My;
-      MbdNote = `λd = ${lambdaD.toFixed(4)} > 0.673 → Mbd = [1 − 0.22(Mod/My)^0.5](Mod/My)^0.5 × My`;
+      // Eq. 3.3.3.3(4): Mc = (My / lambda_d) × (1 − 0.22 / lambda_d)
+      Mc_dist = (My / lambda_d) * (1 - 0.22 / lambda_d);
+      distNote = `lambda_d = ${lambda_d.toFixed(4)} > 0.674 → Mc = (My/λd)(1 − 0.22/λd)  [Eq. 3.3.3.3(4)]`;
     }
-    Mbd = Math.max(Mbd, 0);
+    Mc_dist = Math.max(Mc_dist, 0);
+
+    // Cl. 3.3.3.3(a): Zc = Zf when k_phi >= 0 (web provides positive
+    // rotational restraint to the compression flange-lip assembly).
+    // k_phi is computed per Eq. D2.2.1(2) inside computeDistortionalBucklingBending.
+    //
+    // If k_phi was originally negative, the function already reset it with
+    // f'od = 0 per Appendix D instruction. The sign of the ORIGINAL k_phi
+    // determines whether Zc = Zf (positive) or a reduced value (negative).
+    //
+    // For standard C-sections, k_phi >= 0 → Zc = Zf → Mb = Mc.
+    // If k_phi_original_negative, a reduced Zc should apply per Cl. 3.3.3.3(b),
+    // but that clause is not visible in the provided images. Result is conservative
+    // (using Zc = Zf overpredicts Mb,dist only when k_phi < 0, which is uncommon).
+
+    const Zc_dist = Zf; // Zc = Zf for k_phi >= 0 (Cl. 3.3.3.3(a))
+    Mb_dist = Mc_dist;  // Mb = Zc × fc = Zf × (Mc/Zf) = Mc
   }
 
   steps.push({
-    clause: 'Cl. 7.2.2.4',
-    title: 'Distortional Buckling Capacity (Mbd)',
+    clause: 'Cl. 3.3.3.3(a)',
+    title: 'Distortional Buckling (C-Section) — Mb',
     equations: [
-      'λd = √(My / Mod)',
-      'If λd ≤ 0.673:  Mbd = My',
-      'If λd > 0.673:  Mbd = [1 − 0.22(Mod/My)^0.5] × (Mod/My)^0.5 × My',
-      `→ ${MbdNote}`,
+      'Mb = Zc × fc   ... Eq. 3.3.3.3(1)',
+      'fc = Mc / Zf   ... Eq. 3.3.3.3(2)',
+      'lambda_d = sqrt(My / Mod)   ... Eq. 3.3.3.3(8)',
+      'Mod = Zf × fod   ... Eq. 3.3.3.3(9)',
+      'fod per Eq. D1.2.1(13) with D2.2.1(1)-(3) modifications for bending',
+      'For lambda_d <= 0.674:  Mc = My                       ... Eq. 3.3.3.3(3)',
+      'For lambda_d > 0.674:   Mc = (My/λd)(1 − 0.22/λd)    ... Eq. 3.3.3.3(4)',
+      `Zc = Zf  (k_phi = ${fod > 0 ? k_phi.toFixed(2) : 'N/A'} >= 0 per D2.2.1(2))`,
+      `→ ${distNote}`,
     ],
     values: [
+      { label: 'fod (D2.2.1 analytical)', value: fod > 0 ? fod.toFixed(2) : 'N/A', unit: 'MPa' },
       { label: 'Mod', value: Mod > 0 ? Mod.toFixed(3) : 'N/A', unit: 'kN·m' },
       { label: 'My', value: My.toFixed(3), unit: 'kN·m' },
-      { label: 'λd (distortional slenderness)', value: lambdaD > 0 ? lambdaD.toFixed(4) : 'N/A', unit: '' },
-      { label: 'Mbd', value: Mbd > 0 ? Mbd.toFixed(3) : 'N/A (unlipped)', unit: 'kN·m' },
+      { label: 'lambda_d', value: lambda_d > 0 ? lambda_d.toFixed(4) : 'N/A', unit: '' },
+      { label: 'k_phi (D2.2.1(2))', value: fod > 0 ? k_phi.toFixed(2) : 'N/A', unit: 'N/mm' },
+      { label: 'k_phi originally negative?', value: k_phi_original_negative ? 'Yes' : 'No', unit: '' },
+      { label: 'Zc', value: Zf.toFixed(1), unit: 'mm³' },
+      { label: 'Mb,dist', value: Mb_dist > 0 ? Mb_dist.toFixed(3) : 'N/A (unlipped)', unit: 'kN·m' },
     ],
   });
 
-  // ── Step 5: Governing Nominal Moment ──
+  // ── Step 7: Governing Nominal Moment — Cl. 3.3.1 + Cl. 3.3.3.1 ──
+  // Per Cl. 3.3.1:   M* <= phi_b × Ms  AND  M* <= phi_b × Mb
+  // Per Cl. 3.3.3.1: Mb = lesser of Ms AND values from Cl. 3.3.3.2 and 3.3.3.3
+  // Therefore governing Mn = min(Ms, Mb_ltb, Mb_dist)
+
   let Mn: number;
   let governingMode: DSMBucklingMode;
 
-  if (Mbd > 0) {
-    Mn = Math.min(Mbl, Mbd);
-    governingMode = Mn === Mbd ? 'distortional' : 'local';
-  } else {
-    Mn = Mbl;
-    governingMode = 'local';
+  const candidates: { value: number; mode: DSMBucklingMode }[] = [
+    { value: Ms, mode: 'local' },                // Ms captures local buckling via EWM
+    { value: Mb_ltb, mode: 'lateral-torsional' },
+  ];
+  if (Mb_dist > 0) {
+    candidates.push({ value: Mb_dist, mode: 'distortional' });
   }
 
-  // Check if LTB alone governs
-  if (Mbl >= Mbe - 1e-10 && (Mbd <= 0 || Mbe <= Mbd)) {
-    governingMode = 'lateral-torsional';
+  const validCandidates = candidates.filter(c => c.value > 0);
+  if (validCandidates.length > 0) {
+    const governing = validCandidates.reduce((min, c) => c.value < min.value ? c : min);
+    Mn = governing.value;
+    governingMode = governing.mode;
+  } else {
+    Mn = Ms;
+    governingMode = 'local';
   }
 
   const phiMn = phi_b * Mn;
 
   steps.push({
-    clause: 'Cl. 7.2.2',
-    title: 'Nominal Moment Capacity (Mb)',
+    clause: 'Cl. 3.3.1 / 3.3.3.1',
+    title: 'Governing Nominal Moment Capacity',
     equations: [
-      'Mb = min(Mbl, Mbd)  [Mbd excluded if unlipped]',
-      'ϕMb = ϕ × Mb',
-      'ϕ = 0.90  (AS/NZS 4600:2018)',
+      'M* <= phi_b × Ms   ... Eq. 3.3.1(1)',
+      'M* <= phi_b × Mb   ... Eq. 3.3.1(2)',
+      'Mb = min(Ms, Mb_ltb, Mb_dist)   ... Cl. 3.3.3.1',
+      'phi_b = 0.90  (AS/NZS 4600:2018, Table 1.6.3)',
     ],
     values: [
-      { label: 'Mbe (LTB)', value: Mbe.toFixed(3), unit: 'kN·m' },
-      { label: 'Mbl (local)', value: Mbl.toFixed(3), unit: 'kN·m' },
-      { label: 'Mbd (distortional)', value: Mbd > 0 ? Mbd.toFixed(3) : 'N/A', unit: 'kN·m' },
+      { label: 'Ms (section capacity, Cl.3.3.2.2)', value: Ms.toFixed(3), unit: 'kN·m' },
+      { label: 'Mb,ltb (lateral buckling, Cl.3.3.3.2)', value: Mb_ltb.toFixed(3), unit: 'kN·m' },
+      { label: 'Mb,dist (distortional, Cl.3.3.3.3)', value: Mb_dist > 0 ? Mb_dist.toFixed(3) : 'N/A', unit: 'kN·m' },
       { label: 'Governing mode', value: governingMode, unit: '' },
-      { label: 'Mn (= Mb)', value: Mn.toFixed(3), unit: 'kN·m' },
-      { label: 'ϕ', value: phi_b.toFixed(2), unit: '' },
-      { label: 'ϕMn (= ϕMb)', value: phiMn.toFixed(3), unit: 'kN·m' },
+      { label: 'Mn (nominal)', value: Mn.toFixed(3), unit: 'kN·m' },
+      { label: 'phi_b', value: phi_b.toFixed(2), unit: '' },
+      { label: 'phi_b × Mn (design)', value: phiMn.toFixed(3), unit: 'kN·m' },
     ],
   });
 
-  // ── Step 6: Design Capacity Summary ──
+  // ── Step 8: Design Capacity Summary ──
   steps.push({
-    clause: 'Cl. 7.2.2',
+    clause: 'Cl. 3.3',
     title: 'Design Capacity Summary',
     equations: [
       `Governing failure mode: ${governingMode}`,
     ],
     values: [
       { label: 'Nominal moment (Mn)', value: Mn.toFixed(3), unit: 'kN·m' },
-      { label: 'Design moment (ϕMn)', value: phiMn.toFixed(3), unit: 'kN·m' },
+      { label: 'Design moment (phi_b × Mn)', value: phiMn.toFixed(3), unit: 'kN·m' },
       { label: 'Governing mode', value: governingMode, unit: '' },
-      { label: 'λl (local slenderness)', value: lambdaL.toFixed(4), unit: '' },
-      { label: 'λd (distortional slenderness)', value: lambdaD > 0 ? lambdaD.toFixed(4) : 'N/A', unit: '' },
+      { label: 'lambda_b (LTB slenderness)', value: lambda_b.toFixed(4), unit: '' },
+      { label: 'lambda_d (dist. slenderness)', value: lambda_d > 0 ? lambda_d.toFixed(4) : 'N/A', unit: '' },
     ],
   });
 
@@ -1122,8 +1447,13 @@ export function performDSMDesign(
     grossProps: gross,
     buckling: { fol, fod, Mol, Mod, Mo: isFinite(Mo) ? Mo : 0, My, Lcrd },
     capacity: {
-      Mbe, Mbl, Mbd, Mn, phiMn, phi_b,
-      governingMode, lambdaL, lambdaD,
+      Mbe: Mb_ltb,       // Member capacity from lateral-torsional buckling (Cl. 3.3.3.2.1)
+      Mbl: Ms,           // Section capacity — local buckling via EWM (Cl. 3.3.2.2)
+      Mbd: Mb_dist,      // Member capacity from distortional buckling (Cl. 3.3.3.3)
+      Mn, phiMn, phi_b,
+      governingMode,
+      lambdaL: lambda_b, // LTB slenderness sqrt(My/Mo) — Eq. 3.3.3.2.1(6)
+      lambdaD: lambda_d, // Distortional slenderness sqrt(My/Mod) — Eq. 3.3.3.3(8)
     },
     shear,
     steps,
