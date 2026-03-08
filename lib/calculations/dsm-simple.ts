@@ -100,8 +100,8 @@ export interface DSMCapacityResults {
   lambdaD: number; // Distortional slenderness √(My/Mod)
 }
 
-/** Shear failure mode */
-export type DSMShearMode = 'yielding' | 'inelastic-buckling' | 'elastic-buckling';
+/** Shear governing equation — per AS/NZS 4600:2018 Cl. 3.3.4.1 */
+export type DSMShearMode = 'Eq.3.3.4(1)' | 'Eq.3.3.4(2)' | 'Eq.3.3.4(3)';
 
 /** Shear capacity results */
 export interface DSMShearResult {
@@ -524,25 +524,46 @@ function generateSignatureCurve(
 // ============================================================
 // SHEAR CAPACITY – Cl. 3.3.4 (AS/NZS 4600:2018)
 // ============================================================
+// Equations implemented EXACTLY from Cl. 3.3.4.1 – Shear capacity
+// of webs without holes.
+//
+// Notation mapping (image → code):
+//   d1 = depth of flat portion of web = d - 2(r + t)
+//   tw = thickness of web = t
+//   kv = shear buckling coefficient
+//   Vv = nominal shear capacity of the web
+//   phi_v = capacity reduction factor for shear (Table 1.6.3)
+//
+// Eq. 3.3.4(1): For d1/tw <= sqrt(E*kv/fy):
+//               Vv = 0.64 * fy * d1 * tw
+//
+// Eq. 3.3.4(2): For sqrt(E*kv/fy) < d1/tw <= 1.415*sqrt(E*kv/fy):
+//               Vv = 0.64 * tw^2 * sqrt(E*kv*fy)
+//
+// Eq. 3.3.4(3): For d1/tw > 1.415*sqrt(E*kv/fy):
+//               Vv = 0.905 * E * kv * tw^3 / d1
+//
+// kv:
+//   (i)  Unstiffened webs: kv = 5.34
+//   (ii) Stiffened webs (Cl. 2.7):
+//        Eq. 3.3.4(4): a/d1 <= 1.0  →  kv = 4.00 + 5.34/(a/d1)^2
+//        Eq. 3.3.4(5): a/d1 > 1.0   →  kv = 5.34 + 4.00/(a/d1)^2
+//
+// ============================================================
 
 /**
- * Compute shear capacity of the web of a C-section per AS/NZS 4600:2018.
+ * Compute nominal shear capacity Vv per AS/NZS 4600:2018 Cl. 3.3.4.1.
  *
- * Procedure:
- *   1. Clear web depth hw = d − 2(r + t)  per Cl. 3.3.4
- *   2. Web shear area Av = hw × t
- *   3. Shear yield stress fvy = fy / √3  (≈ 0.577fy)
- *   4. Shear yield force Vy = fvy × Av
- *   5. Elastic shear buckling stress:
- *      τcr = kv × π²E / [12(1−ν²)] × (t/hw)²
- *      where kv = shear buckling coefficient
- *   6. Elastic shear buckling force Vcr = τcr × Av
- *   7. Shear slenderness λv = √(Vy/Vcr)
- *   8. Nominal shear capacity Vn per Cl. 3.3.4:
- *      λv ≤ 0.815:  Vn = Vy                      (yielding)
- *      0.815 < λv ≤ 1.227:  Vn = 0.815√(Vy×Vcr)  (inelastic buckling)
- *      λv > 1.227:  Vn = Vcr                      (elastic buckling)
- *   9. Design capacity ϕVn, ϕ = 0.90
+ * Steps:
+ *   1. d1 = flat web depth = d - 2(r + t)
+ *   2. tw = t (web thickness)
+ *   3. Determine kv (shear buckling coefficient)
+ *   4. Compute slenderness threshold sqrt(E*kv/fy)
+ *   5. Compare d1/tw to thresholds and apply Eq. 3.3.4(1)/(2)/(3)
+ *   6. phi_v * Vv for design capacity
+ *
+ * All internal calculations are in N, mm, MPa.
+ * Final results converted to kN for output.
  */
 export function performShearDesign(
   geo: DSMGeometry,
@@ -552,129 +573,99 @@ export function performShearDesign(
   shearParams?: DSMShearParams
 ): DSMShearResult {
   const steps: DSMCalcStep[] = [];
-  const phi_v = 0.90; // AS/NZS 4600:2018 capacity reduction factor for shear
+  const phi_v = 0.90; // AS/NZS 4600:2018 Table 1.6.3
 
-  const { d, t, r, bf } = geo;
+  const { d, t, r } = geo;
 
-  // ── Step 1: Clear web depth ──
-  const hw = Math.max(d - 2 * (r + t), 0);
+  // ── Notation per Cl. 3.3.4 ──
+  const d1 = Math.max(d - 2 * (r + t), 0);   // flat web depth (mm)
+  const tw = t;                                 // web thickness (mm)
+  const hw = d1;                                // alias for interface compatibility
+  const Av = d1 * tw;                           // web shear area (mm²)
 
   steps.push({
     clause: 'Cl. 3.3.4',
-    title: 'Clear Web Depth (hw)',
+    title: 'Web Dimensions',
     equations: [
-      'hw = d − 2(r + t)',
-      'where d = overall web depth, r = inside bend radius, t = thickness',
+      'd1 = d - 2(r + t)  -- depth of flat portion of web',
+      'tw = t  -- thickness of web',
+      'Av = d1 x tw  -- web shear area',
     ],
     values: [
-      { label: 'd (web depth)', value: d.toFixed(1), unit: 'mm' },
-      { label: 'r (inside radius)', value: r.toFixed(1), unit: 'mm' },
+      { label: 'd (overall depth)', value: d.toFixed(1), unit: 'mm' },
+      { label: 'r (inside bend radius)', value: r.toFixed(1), unit: 'mm' },
       { label: 't (thickness)', value: t.toFixed(2), unit: 'mm' },
-      { label: 'hw (clear web depth)', value: hw.toFixed(2), unit: 'mm' },
-      { label: 'hw/t (web slenderness)', value: (hw / t).toFixed(1), unit: '' },
+      { label: 'd1 (flat web depth)', value: d1.toFixed(2), unit: 'mm' },
+      { label: 'tw (web thickness)', value: tw.toFixed(2), unit: 'mm' },
+      { label: 'd1/tw (web slenderness)', value: (d1 / tw).toFixed(2), unit: '' },
+      { label: 'Av (web shear area)', value: Av.toFixed(1), unit: 'mm²' },
     ],
   });
 
-  // ── Step 2: Web shear area ──
-  const Av = hw * t;
-
-  steps.push({
-    clause: 'Cl. 3.3.4',
-    title: 'Web Shear Area (Av)',
-    equations: [
-      'Av = hw × t',
-    ],
-    values: [
-      { label: 'hw', value: hw.toFixed(2), unit: 'mm' },
-      { label: 't', value: t.toFixed(2), unit: 'mm' },
-      { label: 'Av', value: Av.toFixed(1), unit: 'mm²' },
-    ],
-  });
-
-  // ── Step 3: Shear yield stress & yield force ──
-  const fvy = fy / Math.sqrt(3); // ≈ 0.577 × fy
-  const Vy = (fvy * Av) / 1e3;   // kN
-
-  steps.push({
-    clause: 'Cl. 3.3.4',
-    title: 'Shear Yield Force (Vy)',
-    equations: [
-      'fvy = fy / √3  (= 0.577 × fy)',
-      'Vy = fvy × Av / 10³  (kN)',
-    ],
-    values: [
-      { label: 'fy', value: fy.toFixed(1), unit: 'MPa' },
-      { label: 'fvy (= fy/√3)', value: fvy.toFixed(2), unit: 'MPa' },
-      { label: 'Vy', value: Vy.toFixed(3), unit: 'kN' },
-    ],
-  });
-
-  // ── Step 4: Shear buckling coefficient kv ──
-  // For unstiffened webs (no transverse stiffeners): kv = 5.34
-  // For stiffened webs with aspect ratio a/hw:
-  //   kv = 4.00 + 5.34/(a/hw)²  when a/hw ≤ 1.0
-  //   kv = 5.34 + 4.00/(a/hw)²  when a/hw > 1.0
+  // ── Step 2: Shear buckling coefficient kv ──
+  // (i)  Unstiffened webs: kv = 5.34
+  // (ii) Stiffened webs per Cl. 2.7:
+  //      Eq. 3.3.4(4): a/d1 <= 1.0  →  kv = 4.00 + 5.34/(a/d1)^2
+  //      Eq. 3.3.4(5): a/d1 > 1.0   →  kv = 5.34 + 4.00/(a/d1)^2
   let kv: number;
   let kvNote: string;
 
   if (shearParams?.hasStiffeners && shearParams.stiffenerSpacing > 0) {
+    // Stiffened web – stiffener spacing = a
     const a = shearParams.stiffenerSpacing;
-    const aspectRatio = a / hw;
+    const aspectRatio = a / d1;
     if (aspectRatio <= 1.0) {
+      // Eq. 3.3.4(4)
       kv = 4.00 + 5.34 / (aspectRatio * aspectRatio);
-      kvNote = `Stiffened web: a/hw = ${aspectRatio.toFixed(3)} ≤ 1.0 → kv = 4.00 + 5.34/(a/hw)²`;
+      kvNote = `Stiffened web: a/d1 = ${aspectRatio.toFixed(3)} <= 1.0 --> Eq. 3.3.4(4): kv = 4.00 + 5.34/(a/d1)^2`;
     } else {
+      // Eq. 3.3.4(5)
       kv = 5.34 + 4.00 / (aspectRatio * aspectRatio);
-      kvNote = `Stiffened web: a/hw = ${aspectRatio.toFixed(3)} > 1.0 → kv = 5.34 + 4.00/(a/hw)²`;
+      kvNote = `Stiffened web: a/d1 = ${aspectRatio.toFixed(3)} > 1.0 --> Eq. 3.3.4(5): kv = 5.34 + 4.00/(a/d1)^2`;
     }
 
     steps.push({
       clause: 'Cl. 3.3.4',
-      title: 'Shear Buckling Coefficient (kv) – Stiffened Web',
+      title: 'Shear Buckling Coefficient (kv) - Stiffened Web',
       equations: [
-        'For stiffened web with transverse stiffeners:',
-        'If a/hw ≤ 1.0:  kv = 4.00 + 5.34/(a/hw)²',
-        'If a/hw > 1.0:  kv = 5.34 + 4.00/(a/hw)²',
-        `→ ${kvNote}`,
+        'For beam webs with transverse stiffeners (Cl. 2.7):',
+        'Eq. 3.3.4(4): a/d1 <= 1.0:  kv = 4.00 + 5.34/(a/d1)^2',
+        'Eq. 3.3.4(5): a/d1 > 1.0:   kv = 5.34 + 4.00/(a/d1)^2',
+        `--> ${kvNote}`,
       ],
       values: [
         { label: 'a (stiffener spacing)', value: a.toFixed(0), unit: 'mm' },
-        { label: 'hw', value: hw.toFixed(2), unit: 'mm' },
-        { label: 'a/hw (aspect ratio)', value: (a / hw).toFixed(3), unit: '' },
+        { label: 'd1 (flat web depth)', value: d1.toFixed(2), unit: 'mm' },
+        { label: 'a/d1 (aspect ratio)', value: (a / d1).toFixed(3), unit: '' },
         { label: 'kv', value: kv.toFixed(3), unit: '' },
       ],
     });
   } else {
-    // Unstiffened web – simply supported at flange-web junctions
+    // Unstiffened web
     kv = 5.34;
-    kvNote = 'Unstiffened web (no transverse stiffeners): kv = 5.34';
+    kvNote = 'Unstiffened web: kv = 5.34';
 
-    // Check if shear panel length (a) affects kv
+    // If a finite shear panel length is specified for an unstiffened web
     if (shearParams?.a && shearParams.a > 0) {
       const a = shearParams.a;
-      const aspectRatio = a / hw;
-      // For unstiffened webs with finite panel length,
-      // kv can be taken as:
-      //   kv = 5.34 + 4.00/(a/hw)²  when a/hw > 1.0
-      //   kv = 4.00 + 5.34/(a/hw)²  when a/hw ≤ 1.0
-      // but only if the panel is defined by supporting members
+      const aspectRatio = a / d1;
       if (aspectRatio <= 1.0) {
         kv = 4.00 + 5.34 / (aspectRatio * aspectRatio);
       } else {
         kv = 5.34 + 4.00 / (aspectRatio * aspectRatio);
       }
-      kvNote = `Unstiffened web, panel a/hw = ${aspectRatio.toFixed(3)} → kv = ${kv.toFixed(3)}`;
+      kvNote = `Unstiffened web, panel length a = ${a.toFixed(0)} mm, a/d1 = ${aspectRatio.toFixed(3)} --> kv = ${kv.toFixed(3)}`;
     }
 
     steps.push({
       clause: 'Cl. 3.3.4',
       title: 'Shear Buckling Coefficient (kv)',
       equations: [
-        'For unstiffened web (simply supported edges):',
-        'kv = 5.34  (infinite panel, no stiffeners)',
-        'For finite panel: kv = 5.34 + 4.00/(a/hw)²  [a/hw > 1]',
-        '                  kv = 4.00 + 5.34/(a/hw)²  [a/hw ≤ 1]',
-        `→ ${kvNote}`,
+        '(i)  Unstiffened webs: kv = 5.34',
+        '(ii) With panel length a:',
+        '     Eq. 3.3.4(4): a/d1 <= 1.0: kv = 4.00 + 5.34/(a/d1)^2',
+        '     Eq. 3.3.4(5): a/d1 > 1.0:  kv = 5.34 + 4.00/(a/d1)^2',
+        `--> ${kvNote}`,
       ],
       values: [
         { label: 'kv', value: kv.toFixed(3), unit: '' },
@@ -683,110 +674,146 @@ export function performShearDesign(
     });
   }
 
-  // ── Step 5: Elastic shear buckling stress & force ──
-  const pi2 = Math.PI * Math.PI;
-  const tau_cr = (kv * pi2 * E) / (12 * (1 - nu * nu)) * Math.pow(t / hw, 2);
-  const Vcr = (tau_cr * Av) / 1e3; // kN
+  // ── Step 3: Slenderness thresholds per Cl. 3.3.4.1 ──
+  const slenderness = d1 / tw;                           // d1/tw
+  const threshold1 = Math.sqrt((E * kv) / fy);           // sqrt(E*kv/fy)
+  const threshold2 = 1.415 * threshold1;                  // 1.415*sqrt(E*kv/fy)
 
   steps.push({
-    clause: 'Cl. 3.3.4',
-    title: 'Elastic Shear Buckling (τcr, Vcr)',
+    clause: 'Cl. 3.3.4(1)-(3)',
+    title: 'Slenderness Thresholds',
     equations: [
-      'τcr = kv × π²E / [12(1−ν²)] × (t/hw)²',
-      'Vcr = τcr × Av / 10³  (kN)',
+      'Threshold 1:  sqrt(E*kv/fy)',
+      'Threshold 2:  1.415 * sqrt(E*kv/fy)',
+      'd1/tw compared to thresholds to determine shear regime',
     ],
     values: [
-      { label: 'kv', value: kv.toFixed(3), unit: '' },
       { label: 'E', value: E.toFixed(0), unit: 'MPa' },
-      { label: 'ν', value: nu.toFixed(2), unit: '' },
-      { label: 't/hw', value: (t / hw).toFixed(5), unit: '' },
-      { label: 'τcr', value: tau_cr.toFixed(2), unit: 'MPa' },
-      { label: 'Vcr', value: Vcr.toFixed(3), unit: 'kN' },
+      { label: 'kv', value: kv.toFixed(3), unit: '' },
+      { label: 'fy', value: fy.toFixed(1), unit: 'MPa' },
+      { label: 'E*kv/fy', value: ((E * kv) / fy).toFixed(2), unit: '' },
+      { label: 'sqrt(E*kv/fy)', value: threshold1.toFixed(2), unit: '' },
+      { label: '1.415*sqrt(E*kv/fy)', value: threshold2.toFixed(2), unit: '' },
+      { label: 'd1/tw', value: slenderness.toFixed(2), unit: '' },
     ],
   });
 
-  // ── Step 6: Shear slenderness ──
-  const lambda_v = Vcr > 0 ? Math.sqrt(Vy / Vcr) : Infinity;
-
-  steps.push({
-    clause: 'Cl. 3.3.4',
-    title: 'Shear Slenderness (λv)',
-    equations: [
-      'λv = √(Vy / Vcr)',
-    ],
-    values: [
-      { label: 'Vy', value: Vy.toFixed(3), unit: 'kN' },
-      { label: 'Vcr', value: Vcr.toFixed(3), unit: 'kN' },
-      { label: 'λv', value: isFinite(lambda_v) ? lambda_v.toFixed(4) : '∞', unit: '' },
-    ],
-  });
-
-  // ── Step 7: Nominal shear capacity ──
-  let Vn: number;
+  // ── Step 4: Nominal shear capacity Vv per Cl. 3.3.4.1 ──
+  // Results computed in N, then converted to kN
+  let Vv_N: number;          // Nominal shear capacity in N
   let shearMode: DSMShearMode;
-  let VnNote: string;
+  let VvNote: string;
+  let govEqn: string;
 
-  if (lambda_v <= 0.815) {
-    Vn = Vy;
-    shearMode = 'yielding';
-    VnNote = `λv = ${lambda_v.toFixed(4)} ≤ 0.815 → Shear yielding: Vn = Vy`;
-  } else if (lambda_v <= 1.227) {
-    Vn = 0.815 * Math.sqrt(Vy * Vcr);
-    shearMode = 'inelastic-buckling';
-    VnNote = `0.815 < λv = ${lambda_v.toFixed(4)} ≤ 1.227 → Inelastic buckling: Vn = 0.815√(Vy×Vcr)`;
+  if (slenderness <= threshold1) {
+    // Eq. 3.3.4(1): Vv = 0.64 * fy * d1 * tw
+    Vv_N = 0.64 * fy * d1 * tw;
+    shearMode = 'Eq.3.3.4(1)';
+    govEqn = 'Eq. 3.3.4(1)';
+    VvNote = `d1/tw = ${slenderness.toFixed(2)} <= sqrt(E*kv/fy) = ${threshold1.toFixed(2)} --> Eq. 3.3.4(1)`;
+  } else if (slenderness <= threshold2) {
+    // Eq. 3.3.4(2): Vv = 0.64 * tw^2 * sqrt(E*kv*fy)
+    Vv_N = 0.64 * tw * tw * Math.sqrt(E * kv * fy);
+    shearMode = 'Eq.3.3.4(2)';
+    govEqn = 'Eq. 3.3.4(2)';
+    VvNote = `sqrt(E*kv/fy) = ${threshold1.toFixed(2)} < d1/tw = ${slenderness.toFixed(2)} <= 1.415*sqrt(E*kv/fy) = ${threshold2.toFixed(2)} --> Eq. 3.3.4(2)`;
   } else {
-    Vn = Vcr;
-    shearMode = 'elastic-buckling';
-    VnNote = `λv = ${lambda_v.toFixed(4)} > 1.227 → Elastic buckling: Vn = Vcr`;
+    // Eq. 3.3.4(3): Vv = 0.905 * E * kv * tw^3 / d1
+    Vv_N = 0.905 * E * kv * tw * tw * tw / d1;
+    shearMode = 'Eq.3.3.4(3)';
+    govEqn = 'Eq. 3.3.4(3)';
+    VvNote = `d1/tw = ${slenderness.toFixed(2)} > 1.415*sqrt(E*kv/fy) = ${threshold2.toFixed(2)} --> Eq. 3.3.4(3)`;
   }
 
+  const Vn = Vv_N / 1e3;     // kN – nominal shear capacity
+
   steps.push({
-    clause: 'Cl. 3.3.4',
-    title: 'Nominal Shear Capacity (Vn)',
+    clause: 'Cl. 3.3.4(1)-(3)',
+    title: `Nominal Shear Capacity (Vv) - ${govEqn}`,
     equations: [
-      'If λv ≤ 0.815:        Vn = Vy            (yielding)',
-      'If 0.815 < λv ≤ 1.227: Vn = 0.815√(Vy×Vcr)  (inelastic buckling)',
-      'If λv > 1.227:        Vn = Vcr            (elastic buckling)',
-      `→ ${VnNote}`,
+      'Eq. 3.3.4(1): d1/tw <= sqrt(E*kv/fy):            Vv = 0.64*fy*d1*tw          (yielding)',
+      'Eq. 3.3.4(2): sqrt(E*kv/fy) < d1/tw <= 1.415*:   Vv = 0.64*tw^2*sqrt(E*kv*fy) (inelastic)',
+      'Eq. 3.3.4(3): d1/tw > 1.415*sqrt(E*kv/fy):       Vv = 0.905*E*kv*tw^3/d1     (elastic)',
+      `--> ${VvNote}`,
     ],
     values: [
-      { label: 'λv', value: isFinite(lambda_v) ? lambda_v.toFixed(4) : '∞', unit: '' },
-      { label: 'Vn', value: Vn.toFixed(3), unit: 'kN' },
+      { label: 'd1/tw', value: slenderness.toFixed(2), unit: '' },
+      { label: 'sqrt(E*kv/fy)', value: threshold1.toFixed(2), unit: '' },
+      { label: '1.415*sqrt(E*kv/fy)', value: threshold2.toFixed(2), unit: '' },
+      { label: `Vv (${govEqn})`, value: Vv_N.toFixed(1), unit: 'N' },
+      { label: 'Vv', value: Vn.toFixed(3), unit: 'kN' },
       { label: 'Failure mode', value: shearMode, unit: '' },
     ],
   });
 
-  // ── Step 8: Design shear capacity ──
+  // ── Step 5: Numerical substitution detail ──
+  let substitution: string;
+  if (shearMode === 'Eq.3.3.4(1)') {
+    substitution =
+      `Vv = 0.64 x ${fy.toFixed(1)} x ${d1.toFixed(2)} x ${tw.toFixed(2)} = ${Vv_N.toFixed(1)} N = ${Vn.toFixed(3)} kN`;
+  } else if (shearMode === 'Eq.3.3.4(2)') {
+    substitution =
+      `Vv = 0.64 x ${tw.toFixed(2)}^2 x sqrt(${E.toFixed(0)} x ${kv.toFixed(3)} x ${fy.toFixed(1)}) = ${Vv_N.toFixed(1)} N = ${Vn.toFixed(3)} kN`;
+  } else {
+    substitution =
+      `Vv = 0.905 x ${E.toFixed(0)} x ${kv.toFixed(3)} x ${tw.toFixed(2)}^3 / ${d1.toFixed(2)} = ${Vv_N.toFixed(1)} N = ${Vn.toFixed(3)} kN`;
+  }
+
+  steps.push({
+    clause: govEqn,
+    title: 'Numerical Substitution',
+    equations: [
+      substitution,
+    ],
+    values: [
+      { label: 'Vv', value: Vv_N.toFixed(1), unit: 'N' },
+      { label: 'Vv', value: Vn.toFixed(3), unit: 'kN' },
+    ],
+  });
+
+  // ── Step 6: Design shear capacity ──
   const phiVn = phi_v * Vn;
 
   steps.push({
     clause: 'Cl. 3.3.4',
-    title: 'Design Shear Capacity (ϕVn)',
+    title: 'Design Shear Capacity (phi_v * Vv)',
     equations: [
-      'ϕVn = ϕ × Vn',
-      'ϕ = 0.90  (AS/NZS 4600:2018)',
+      'V* <= phi_v * Vv',
+      'phi_v = 0.90  (AS/NZS 4600:2018, Table 1.6.3)',
+      `phi_v * Vv = ${phi_v.toFixed(2)} x ${Vn.toFixed(3)} = ${phiVn.toFixed(3)} kN`,
     ],
     values: [
-      { label: 'Vn (nominal)', value: Vn.toFixed(3), unit: 'kN' },
-      { label: 'ϕ', value: phi_v.toFixed(2), unit: '' },
-      { label: 'ϕVn (design)', value: phiVn.toFixed(3), unit: 'kN' },
+      { label: 'Vv (nominal)', value: Vn.toFixed(3), unit: 'kN' },
+      { label: 'phi_v', value: phi_v.toFixed(2), unit: '' },
+      { label: 'phi_v*Vv (design)', value: phiVn.toFixed(3), unit: 'kN' },
     ],
   });
 
-  // ── Step 9: Summary ──
+  // ── Step 7: Summary ──
   steps.push({
     clause: 'Cl. 3.3.4',
     title: 'Shear Design Summary',
     equations: [
+      `Controlling equation: ${govEqn}`,
       `Controlling failure mode: ${shearMode}`,
     ],
     values: [
-      { label: 'Shear slenderness (λv)', value: isFinite(lambda_v) ? lambda_v.toFixed(4) : '∞', unit: '' },
-      { label: 'Nominal shear (Vn)', value: Vn.toFixed(3), unit: 'kN' },
-      { label: 'Design shear (ϕVn)', value: phiVn.toFixed(3), unit: 'kN' },
+      { label: 'd1/tw (web slenderness)', value: slenderness.toFixed(2), unit: '' },
+      { label: 'Nominal shear Vv', value: Vn.toFixed(3), unit: 'kN' },
+      { label: 'Design shear phi_v*Vv', value: phiVn.toFixed(3), unit: 'kN' },
       { label: 'Controlling mode', value: shearMode, unit: '' },
+      { label: 'Governing equation', value: govEqn, unit: '' },
     ],
   });
+
+  // ── Derived reference values for UI compatibility ──
+  // These are computed for display purposes only; the governing
+  // capacity Vv is determined solely from Eqs. 3.3.4(1)-(3).
+  const fvy = fy / Math.sqrt(3);                                       // reference shear yield stress
+  const Vy = (0.64 * fy * d1 * tw) / 1e3;                              // Eq. 3.3.4(1) value in kN
+  const tau_cr = 0.905 * E * kv * tw * tw / (d1 * d1);                 // reverse-derived from Eq. 3.3.4(3)
+  const Vcr = (0.905 * E * kv * tw * tw * tw / d1) / 1e3;              // Eq. 3.3.4(3) value in kN
+  const lambda_v = d1 > 0 ? slenderness / threshold1 : 0;              // normalised slenderness d1/tw / sqrt(Ekv/fy)
 
   return {
     hw, Av, fvy, kv, tau_cr,

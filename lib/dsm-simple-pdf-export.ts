@@ -335,9 +335,9 @@ export function exportSimpleCFSPdf(
     : cap.governingMode === 'local' ? 'Local Buckling'
     : 'Distortional Buckling';
   const shearModeLabel = shear
-    ? (shear.shearMode === 'yielding' ? 'Shear Yielding'
-      : shear.shearMode === 'inelastic-buckling' ? 'Inelastic Shear Buckling'
-      : 'Elastic Shear Buckling')
+    ? (shear.shearMode === 'Eq.3.3.4(1)' ? 'Eq. 3.3.4(1)'
+      : shear.shearMode === 'Eq.3.3.4(2)' ? 'Eq. 3.3.4(2)'
+      : 'Eq. 3.3.4(3)')
     : 'N/A';
 
   y = boxedResult(doc, [
@@ -879,22 +879,27 @@ export function exportSimpleCFSPdf(
 
   if (shear) {
     // 8.1 Clear web depth
-    y = subHeading(doc, '8.1  Clear Web Depth (hw)', y);
+    y = subHeading(doc, '8.1  Web Dimensions (d1, tw)', y);
 
     y = equationBlock(doc,
-      'Clear Web Depth',
+      'Flat Web Depth (d1)',
       'Cl. 3.3.4',
-      'hw = d - 2(r + t)',
-      `hw = ${fmt(geo.d, 1)} - 2 x (${fmt(geo.r, 1)} + ${fmt(geo.t, 2)})`,
+      'd1 = d - 2(r + t)',
+      `d1 = ${fmt(geo.d, 1)} - 2 x (${fmt(geo.r, 1)} + ${fmt(geo.t, 2)})`,
       fmt(shear.hw, 2),
       'mm', y
     );
 
+    y = paramRow(doc, 'tw (web thickness)', fmt(geo.t, 2), 'mm', y);
+    y = paramRow(doc, 'd1/tw (web slenderness)', fmt(shear.hw / geo.t, 2), '', y, true);
+
     y = codeSnippet(doc, [
       'Implementation Snippet:',
-      'def clear_web_depth(d, r, t):',
-      '    # Cl. 3.3.4 - clear web depth',
-      '    return d - 2 * (r + t)',
+      'def web_dimensions(d, r, t):',
+      '    # Cl. 3.3.4 - flat web depth',
+      '    d1 = d - 2 * (r + t)',
+      '    tw = t',
+      '    return d1, tw',
     ], y);
 
     // 8.2 Shear area
@@ -903,59 +908,28 @@ export function exportSimpleCFSPdf(
     y = equationBlock(doc,
       'Shear Area',
       'Cl. 3.3.4',
-      'Av = hw x t',
+      'Av = d1 x tw',
       `Av = ${fmt(shear.hw, 2)} x ${fmt(geo.t, 2)}`,
       fmt(shear.Av, 1),
       'mm^2', y
     );
 
-    // 8.3 Shear yield
-    y = subHeading(doc, '8.3  Shear Yield Force (Vy)', y);
-
-    y = equationBlock(doc,
-      'Shear Yield Stress (fvy)',
-      'Cl. 3.3.4',
-      'fvy = fy / sqrt(3)',
-      `fvy = ${fmt(fy, 1)} / sqrt(3)`,
-      fmt(shear.fvy, 2),
-      'MPa', y
-    );
-
-    y = equationBlock(doc,
-      'Shear Yield Force (Vy)',
-      'Cl. 3.3.4',
-      'Vy = fvy x Av / 10^3  (kN)',
-      `Vy = ${fmt(shear.fvy, 2)} x ${fmt(shear.Av, 1)} / 10^3`,
-      fmt(shear.Vy),
-      'kN', y
-    );
-
-    y = codeSnippet(doc, [
-      'Implementation Snippet:',
-      'import math',
-      'def shear_yield(fy, Av):',
-      '    # Cl. 3.3.4 - shear yield force',
-      '    fvy = fy / math.sqrt(3)  # approx 0.577*fy',
-      '    Vy = fvy * Av / 1e3  # N -> kN',
-      '    return fvy, Vy',
-    ], y);
-
-    // 8.4 Shear buckling coefficient
-    y = subHeading(doc, '8.4  Shear Buckling Coefficient (kv)', y);
+    // 8.3 Shear buckling coefficient
+    y = subHeading(doc, '8.3  Shear Buckling Coefficient (kv)', y);
 
     if (shearParams.hasStiffeners && shearParams.stiffenerSpacing > 0) {
       const aspectRatio = shearParams.stiffenerSpacing / shear.hw;
-      y = bodyText(doc, `Stiffened web: stiffener spacing a = ${fmtInt(shearParams.stiffenerSpacing)} mm, a/hw = ${fmt(aspectRatio, 3)}`, y);
+      y = bodyText(doc, `Stiffened web: stiffener spacing a = ${fmtInt(shearParams.stiffenerSpacing)} mm, a/d1 = ${fmt(aspectRatio, 3)}`, y);
       if (aspectRatio <= 1.0) {
-        y = bodyText(doc, 'a/hw <= 1.0:  kv = 4.00 + 5.34 / (a/hw)^2', y, 2);
+        y = bodyText(doc, 'Eq. 3.3.4(4): a/d1 <= 1.0:  kv = 4.00 + 5.34 / (a/d1)^2', y, 2);
       } else {
-        y = bodyText(doc, 'a/hw > 1.0:  kv = 5.34 + 4.00 / (a/hw)^2', y, 2);
+        y = bodyText(doc, 'Eq. 3.3.4(5): a/d1 > 1.0:  kv = 5.34 + 4.00 / (a/d1)^2', y, 2);
       }
     } else if (shearParams.a > 0) {
       const aspectRatio = shearParams.a / shear.hw;
-      y = bodyText(doc, `Unstiffened web with finite panel length a = ${fmtInt(shearParams.a)} mm, a/hw = ${fmt(aspectRatio, 3)}`, y);
+      y = bodyText(doc, `Unstiffened web with finite panel length a = ${fmtInt(shearParams.a)} mm, a/d1 = ${fmt(aspectRatio, 3)}`, y);
     } else {
-      y = bodyText(doc, 'Unstiffened web (no transverse stiffeners, infinite panel): kv = 5.34', y);
+      y = bodyText(doc, 'Unstiffened web (no transverse stiffeners): kv = 5.34', y);
     }
     y += 1;
 
@@ -964,94 +938,67 @@ export function exportSimpleCFSPdf(
 
     y = codeSnippet(doc, [
       'Implementation Snippet:',
-      'def shear_buckling_coeff(has_stiffeners, a, hw):',
+      'def shear_buckling_coeff(has_stiffeners, a, d1):',
       '    # Cl. 3.3.4 - shear buckling coefficient',
       '    if not has_stiffeners:',
       '        return 5.34  # unstiffened web',
-      '    ratio = a / hw',
+      '    ratio = a / d1',
       '    if ratio <= 1.0:',
-      '        return 4.00 + 5.34 / ratio**2',
+      '        return 4.00 + 5.34 / ratio**2  # Eq. 3.3.4(4)',
       '    else:',
-      '        return 5.34 + 4.00 / ratio**2',
+      '        return 5.34 + 4.00 / ratio**2  # Eq. 3.3.4(5)',
     ], y);
 
-    // 8.5 Elastic shear buckling
-    y = subHeading(doc, '8.5  Elastic Shear Buckling', y);
+    // 8.4 Slenderness thresholds
+    y = subHeading(doc, '8.4  Slenderness Thresholds', y);
 
-    y = equationBlock(doc,
-      'Elastic Shear Buckling Stress (tau_cr)',
-      'Cl. 3.3.4',
-      'tau_cr = kv x pi^2 x E / [12(1 - nu^2)] x (t/hw)^2',
-      `tau_cr = ${fmt(shear.kv)} x pi^2 x ${fmtInt(E_input)} / [12(1 - ${fmt(nu_input, 2)}^2)] x (${fmt(geo.t, 2)}/${fmt(shear.hw, 2)})^2`,
-      fmt(shear.tau_cr, 2),
-      'MPa', y
-    );
+    const d1 = shear.hw;
+    const tw = geo.t;
+    const slenderness = d1 / tw;
+    const threshold1 = Math.sqrt((E_input * shear.kv) / fy);
+    const threshold2 = 1.415 * threshold1;
 
-    y = equationBlock(doc,
-      'Elastic Shear Buckling Force (Vcr)',
-      'Cl. 3.3.4',
-      'Vcr = tau_cr x Av / 10^3  (kN)',
-      `Vcr = ${fmt(shear.tau_cr, 2)} x ${fmt(shear.Av, 1)} / 10^3`,
-      fmt(shear.Vcr),
-      'kN', y
-    );
-
-    y = codeSnippet(doc, [
-      'Implementation Snippet:',
-      'import math',
-      'def elastic_shear_buckling(kv, E, nu, t, hw, Av):',
-      '    # Cl. 3.3.4 - elastic shear buckling',
-      '    tau_cr = kv * math.pi**2 * E / (12*(1-nu**2)) * (t/hw)**2',
-      '    Vcr = tau_cr * Av / 1e3  # N -> kN',
-      '    return tau_cr, Vcr',
-    ], y);
-
-    // 8.6 Shear slenderness
-    y = subHeading(doc, '8.6  Shear Slenderness (lambda_v)', y);
-
-    y = equationBlock(doc,
-      'Shear Slenderness',
-      'Cl. 3.3.4',
-      'lambda_v = sqrt(Vy / Vcr)',
-      `lambda_v = sqrt(${fmt(shear.Vy)} / ${fmt(shear.Vcr)})`,
-      fmt(shear.lambda_v, 4),
-      '', y
-    );
-
-    // 8.7 Nominal shear capacity
-    y = subHeading(doc, '8.7  Nominal Shear Capacity (Vn)', y);
-
-    y = bodyText(doc, 'Three regimes per Cl. 3.3.4:', y);
-    y = bulletText(doc, 'lambda_v <= 0.815:  Vn = Vy  (shear yielding)', y);
-    y = bulletText(doc, '0.815 < lambda_v <= 1.227:  Vn = 0.815 x sqrt(Vy x Vcr)  (inelastic shear buckling)', y);
-    y = bulletText(doc, 'lambda_v > 1.227:  Vn = Vcr  (elastic shear buckling)', y);
+    y = paramRow(doc, 'd1/tw', fmt(slenderness, 2), '', y);
+    y = paramRow(doc, 'sqrt(E*kv/fy)', fmt(threshold1, 2), '', y);
+    y = paramRow(doc, '1.415*sqrt(E*kv/fy)', fmt(threshold2, 2), '', y, true);
     y += 2;
 
-    let VnRegime: string;
-    if (shear.lambda_v <= 0.815) {
-      VnRegime = `lambda_v = ${fmt(shear.lambda_v, 4)} <= 0.815 --> Shear yielding: Vn = Vy`;
-    } else if (shear.lambda_v <= 1.227) {
-      VnRegime = `0.815 < lambda_v = ${fmt(shear.lambda_v, 4)} <= 1.227 --> Inelastic buckling: Vn = 0.815 x sqrt(Vy x Vcr)`;
+    // 8.5 Nominal shear capacity
+    y = subHeading(doc, '8.5  Nominal Shear Capacity (Vv)', y);
+
+    y = bodyText(doc, 'Three equations per Cl. 3.3.4.1:', y);
+    y = bulletText(doc, 'Eq. 3.3.4(1): d1/tw <= sqrt(E*kv/fy):  Vv = 0.64*fy*d1*tw', y);
+    y = bulletText(doc, 'Eq. 3.3.4(2): sqrt(E*kv/fy) < d1/tw <= 1.415*sqrt(E*kv/fy):  Vv = 0.64*tw^2*sqrt(E*kv*fy)', y);
+    y = bulletText(doc, 'Eq. 3.3.4(3): d1/tw > 1.415*sqrt(E*kv/fy):  Vv = 0.905*E*kv*tw^3/d1', y);
+    y += 2;
+
+    let VvRegime: string;
+    if (shear.shearMode === 'Eq.3.3.4(1)') {
+      VvRegime = `d1/tw = ${fmt(slenderness, 2)} <= sqrt(E*kv/fy) = ${fmt(threshold1, 2)} --> Eq. 3.3.4(1): Vv = 0.64*fy*d1*tw`;
+    } else if (shear.shearMode === 'Eq.3.3.4(2)') {
+      VvRegime = `sqrt(E*kv/fy) = ${fmt(threshold1, 2)} < d1/tw = ${fmt(slenderness, 2)} <= 1.415*sqrt(E*kv/fy) = ${fmt(threshold2, 2)} --> Eq. 3.3.4(2): Vv = 0.64*tw^2*sqrt(E*kv*fy)`;
     } else {
-      VnRegime = `lambda_v = ${fmt(shear.lambda_v, 4)} > 1.227 --> Elastic buckling: Vn = Vcr`;
+      VvRegime = `d1/tw = ${fmt(slenderness, 2)} > 1.415*sqrt(E*kv/fy) = ${fmt(threshold2, 2)} --> Eq. 3.3.4(3): Vv = 0.905*E*kv*tw^3/d1`;
     }
 
-    y = bodyText(doc, `Determination: ${VnRegime}`, y, 2);
+    y = bodyText(doc, `Determination: ${VvRegime}`, y, 2);
     y += 1;
 
     y = equationBlock(doc,
-      'Vn',
-      'Cl. 3.3.4',
-      shear.shearMode === 'yielding'
-        ? 'Vn = Vy'
-        : shear.shearMode === 'inelastic-buckling'
-          ? 'Vn = 0.815 x sqrt(Vy x Vcr)'
-          : 'Vn = Vcr',
-      shear.shearMode === 'yielding'
-        ? `Vn = Vy = ${fmt(shear.Vy)}`
-        : shear.shearMode === 'inelastic-buckling'
-          ? `Vn = 0.815 x sqrt(${fmt(shear.Vy)} x ${fmt(shear.Vcr)})`
-          : `Vn = Vcr = ${fmt(shear.Vcr)}`,
+      'Vv',
+      shear.shearMode === 'Eq.3.3.4(1)' ? 'Eq. 3.3.4(1)'
+        : shear.shearMode === 'Eq.3.3.4(2)' ? 'Eq. 3.3.4(2)'
+        : 'Eq. 3.3.4(3)',
+      shear.shearMode === 'Eq.3.3.4(1)'
+        ? 'Vv = 0.64 * fy * d1 * tw'
+        : shear.shearMode === 'Eq.3.3.4(2)'
+          ? 'Vv = 0.64 * tw^2 * sqrt(E * kv * fy)'
+          : 'Vv = 0.905 * E * kv * tw^3 / d1',
+      shear.shearMode === 'Eq.3.3.4(1)'
+        ? `Vv = 0.64 x ${fmt(fy, 1)} x ${fmt(d1, 2)} x ${fmt(tw, 2)} / 10^3`
+        : shear.shearMode === 'Eq.3.3.4(2)'
+          ? `Vv = 0.64 x ${fmt(tw, 2)}^2 x sqrt(${fmtInt(E_input)} x ${fmt(shear.kv)} x ${fmt(fy, 1)}) / 10^3`
+          : `Vv = 0.905 x ${fmtInt(E_input)} x ${fmt(shear.kv)} x ${fmt(tw, 2)}^3 / ${fmt(d1, 2)} / 10^3`,
       fmt(shear.Vn),
       'kN', y
     );
@@ -1059,15 +1006,17 @@ export function exportSimpleCFSPdf(
     y = codeSnippet(doc, [
       'Implementation Snippet:',
       'import math',
-      'def nominal_shear_capacity(Vy, Vcr):',
-      '    # Cl. 3.3.4 - nominal shear capacity (three regimes)',
-      '    lambda_v = math.sqrt(Vy / Vcr)',
-      '    if lambda_v <= 0.815:',
-      '        return Vy  # yielding',
-      '    elif lambda_v <= 1.227:',
-      '        return 0.815 * math.sqrt(Vy * Vcr)  # inelastic',
+      '# AS/NZS 4600:2018 Cl. 3.3.4.1',
+      'def nominal_shear_capacity(fy, E, kv, d1, tw):',
+      '    slenderness = d1 / tw',
+      '    threshold = math.sqrt(E * kv / fy)',
+      '    if slenderness <= threshold:',
+      '        Vv = 0.64 * fy * d1 * tw         # Eq. 3.3.4(1)',
+      '    elif slenderness <= 1.415 * threshold:',
+      '        Vv = 0.64 * tw**2 * math.sqrt(E * kv * fy)  # Eq. 3.3.4(2)',
       '    else:',
-      '        return Vcr  # elastic buckling',
+      '        Vv = 0.905 * E * kv * tw**3 / d1  # Eq. 3.3.4(3)',
+      '    return Vv  # in N',
     ], y);
   } else {
     y = bodyText(doc, 'Shear capacity not computed.', y);
@@ -1116,25 +1065,25 @@ export function exportSimpleCFSPdf(
     y = equationBlock(doc,
       'Design Shear Capacity',
       'Cl. 3.3.4',
-      'phi_Vn = phi_v x Vn',
-      `phi_Vn = ${fmt(shear.phi_v, 2)} x ${fmt(shear.Vn)}`,
+      'phi_v x Vv = phi_v x Vv',
+      `phi_v x Vv = ${fmt(shear.phi_v, 2)} x ${fmt(shear.Vn)}`,
       fmt(shear.phiVn),
       'kN', y
     );
 
     y = codeSnippet(doc, [
       'Implementation Snippet:',
-      'def design_shear_capacity(phi_v, Vn):',
+      'def design_shear_capacity(phi_v, Vv):',
       '    # Cl. 3.3.4 - design shear capacity',
-      '    # phi_v = 0.90 per AS/NZS 4600:2018',
-      '    return phi_v * Vn',
+      '    # phi_v = 0.90 per AS/NZS 4600:2018 Table 1.6.3',
+      '    return phi_v * Vv',
     ], y);
 
     y = boxedResult(doc, [
       '----------------------------------------',
       'FINAL SHEAR DESIGN CAPACITY',
-      `Nominal strength Vn = ${fmt(shear.Vn)} kN`,
-      `Design strength phi_Vn = ${fmt(shear.phiVn)} kN`,
+      `Nominal strength Vv = ${fmt(shear.Vn)} kN`,
+      `Design strength phi_v*Vv = ${fmt(shear.phiVn)} kN`,
       `Governing mode: ${shearModeLabel}`,
       '----------------------------------------',
     ], y);
@@ -1155,7 +1104,7 @@ export function exportSimpleCFSPdf(
   y += 2;
 
   if (shear) {
-    y = bodyText(doc, `The shear capacity of the web has been determined per AS/NZS 4600:2018 Clause 3.3.4. The governing shear failure mode is ${shearModeLabel} with a nominal shear capacity Vn = ${fmt(shear.Vn)} kN and a design capacity phi_Vn = ${fmt(shear.phiVn)} kN (phi_v = ${fmt(shear.phi_v, 2)}).`, y);
+    y = bodyText(doc, `The shear capacity of the web has been determined per AS/NZS 4600:2018 Clause 3.3.4.1. The governing shear failure mode is ${shearModeLabel} with a nominal shear capacity Vv = ${fmt(shear.Vn)} kN and a design capacity phi_v*Vv = ${fmt(shear.phiVn)} kN (phi_v = ${fmt(shear.phi_v, 2)}).`, y);
     y += 2;
   }
 

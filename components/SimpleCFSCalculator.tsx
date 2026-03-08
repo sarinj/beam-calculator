@@ -374,17 +374,17 @@ function SummaryBox({ result }: { result: DSMDesignResult }) {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="text-center p-3 rounded-lg bg-white/70 dark:bg-slate-800/70">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Nominal Shear</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Nominal Shear (Vv)</p>
               <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{shear.Vn.toFixed(3)}</p>
               <p className="text-xs text-slate-500">kN</p>
             </div>
             <div className="text-center p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 ring-2 ring-orange-400 dark:ring-orange-600">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Design Shear (ϕVn)</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Design Shear (ϕVv)</p>
               <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{shear.phiVn.toFixed(3)}</p>
               <p className="text-xs text-slate-500">kN</p>
             </div>
             <div className="text-center p-3 rounded-lg bg-white/70 dark:bg-slate-800/70">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Yield Shear</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Yield Shear Eq.3.3.4(1)</p>
               <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{shear.Vy.toFixed(3)}</p>
               <p className="text-xs text-slate-500">kN</p>
             </div>
@@ -392,21 +392,21 @@ function SummaryBox({ result }: { result: DSMDesignResult }) {
 
           {/* Shear governing mode */}
           <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-semibold ${
-            shear.shearMode === 'yielding'
+            shear.shearMode === 'Eq.3.3.4(1)'
               ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700'
-              : shear.shearMode === 'inelastic-buckling'
+              : shear.shearMode === 'Eq.3.3.4(2)'
               ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'
               : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700'
           }`}>
-            Shear mode: {shear.shearMode}
+            Governing: {shear.shearMode}
           </div>
 
           {/* Shear bar chart */}
           <div className="space-y-1.5">
             {[
-              { label: 'Vy (yield)', value: shear.Vy, color: 'bg-green-400' },
-              { label: 'Vcr (buckling)', value: shear.Vcr, color: 'bg-red-400' },
-              { label: 'Vn (nominal)', value: shear.Vn, color: 'bg-orange-400' },
+              { label: 'Vy Eq.3.3.4(1)', value: shear.Vy, color: 'bg-green-400' },
+              { label: 'Vcr Eq.3.3.4(3)', value: shear.Vcr, color: 'bg-red-400' },
+              { label: 'Vv (nominal)', value: shear.Vn, color: 'bg-orange-400' },
             ].map((item) => {
               const maxVal = Math.max(shear.Vy, shear.Vcr, shear.Vn) || 1;
               const pct = (item.value / maxVal) * 100;
@@ -425,16 +425,15 @@ function SummaryBox({ result }: { result: DSMDesignResult }) {
           {/* Shear slenderness */}
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div className="p-2 rounded bg-white/60 dark:bg-slate-800/60">
-              <span className="text-slate-500">λv (shear):</span>
-              <span className="ml-1 font-mono font-semibold text-slate-700 dark:text-slate-200">{shear.lambda_v.toFixed(4)}</span>
+              <span className="text-slate-500">d1/tw:</span>
+              <span className="ml-1 font-mono font-semibold text-slate-700 dark:text-slate-200">{(shear.hw / (shear.Av / shear.hw)).toFixed(2)}</span>
               <span className="ml-1 text-slate-400">
-                {shear.lambda_v <= 0.815 ? '≤ 0.815 (yield) ✓' : shear.lambda_v <= 1.227 ? '≤ 1.227 (inelastic)' : '> 1.227 (elastic)'}
+                {shear.shearMode === 'Eq.3.3.4(1)' ? 'Eq.3.3.4(1) ✓' : shear.shearMode === 'Eq.3.3.4(2)' ? 'Eq.3.3.4(2)' : 'Eq.3.3.4(3)'}
               </span>
             </div>
             <div className="p-2 rounded bg-white/60 dark:bg-slate-800/60">
               <span className="text-slate-500">kv:</span>
               <span className="ml-1 font-mono font-semibold text-slate-700 dark:text-slate-200">{shear.kv.toFixed(3)}</span>
-              <span className="ml-1 text-slate-400">τcr = {shear.tau_cr.toFixed(1)} MPa</span>
             </div>
           </div>
         </div>
