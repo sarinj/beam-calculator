@@ -1,8 +1,7 @@
 import { BeamInputs, WSDResults, SectionProperties } from '@/types/beam';
 import {
   getModularRatio,
-  steelGradeData,
-  roundBarData,
+  getStirrubBarArea,
 } from './common';
 
 // Calculate WSD results
@@ -10,12 +9,12 @@ export function calculateWSD(
   inputs: BeamInputs,
   sectionProps: SectionProperties
 ): WSDResults {
-  const { concreteGrade, steelGrade, width, stirrupSize, stirrupSpacing } = inputs;
+  const { concreteGrade, steelGradeFy, steelGradeFv, width, stirrupSize, stirrupSpacing } = inputs;
   const { effectiveDepth, totalSteelArea } = sectionProps;
 
   // Allowable stresses
   const allowableConcreteStress = 0.45 * concreteGrade; // fc = 0.45 * f'c
-  const allowableSteelStress = 0.5 * steelGradeData[steelGrade].fy; // fs = 0.5 * fy
+  const allowableSteelStress = 0.5 * steelGradeFy; // fs = 0.5 * fy (flexural)
 
   // Modular ratio
   const modularRatio = getModularRatio(concreteGrade);
@@ -46,10 +45,10 @@ export function calculateWSD(
   const allowableShearStress = 0.29 * Math.sqrt(concreteGrade);
   const concreteShearCapacity = allowableShearStress * width * effectiveDepth;
 
-  // Stirrup contribution
-  const stirrupArea = 2 * roundBarData[stirrupSize].area; // 2 legs
-  const fy = steelGradeData[steelGrade].fy;
-  const stirrupShearCapacity = (stirrupArea * 0.5 * fy * effectiveDepth) / stirrupSpacing;
+  // Stirrup contribution - use fv for shear
+  const stirrupArea = 2 * getStirrubBarArea(stirrupSize); // 2 legs
+  const fv = steelGradeFv;
+  const stirrupShearCapacity = (stirrupArea * 0.5 * fv * effectiveDepth) / stirrupSpacing;
 
   // Total shear capacity
   const shearCapacity = concreteShearCapacity + stirrupShearCapacity;

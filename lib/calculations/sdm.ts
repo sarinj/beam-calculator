@@ -1,5 +1,5 @@
 import { BeamInputs, SDMResults, SectionProperties } from '@/types/beam';
-import { getBeta1, steelGradeData, roundBarData } from './common';
+import { getBeta1, getStirrubBarArea } from './common';
 
 // Strength reduction factors
 const PHI_MOMENT = 0.9; // φ for flexure
@@ -10,10 +10,11 @@ export function calculateSDM(
   inputs: BeamInputs,
   sectionProps: SectionProperties
 ): SDMResults {
-  const { concreteGrade, steelGrade, width, stirrupSize, stirrupSpacing } = inputs;
+  const { concreteGrade, steelGradeFy, steelGradeFv, width, stirrupSize, stirrupSpacing } = inputs;
   const { effectiveDepth, totalSteelArea, steelRatio } = sectionProps;
 
-  const fy = steelGradeData[steelGrade].fy;
+  const fy = steelGradeFy;
+  const fv = steelGradeFv;
   const fc = concreteGrade;
 
   // Beta1 factor
@@ -41,13 +42,13 @@ export function calculateSDM(
   // Design moment capacity
   const designMoment = PHI_MOMENT * nominalMoment;
 
-  // Shear capacity calculation
+  // Shear capacity calculation - use fv for shear
   // Concrete contribution: Vc = 0.53 * sqrt(f'c) * b * d
   const concreteShearCapacity = 0.53 * Math.sqrt(fc) * width * effectiveDepth;
 
-  // Steel contribution (stirrups): Vs = Av * fy * d / s
-  const stirrupArea = 2 * roundBarData[stirrupSize].area; // 2 legs
-  const steelShearCapacity = (stirrupArea * fy * effectiveDepth) / stirrupSpacing;
+  // Steel contribution (stirrups): Vs = Av * fv * d / s
+  const stirrupArea = 2 * getStirrubBarArea(stirrupSize); // 2 legs
+  const steelShearCapacity = (stirrupArea * fv * effectiveDepth) / stirrupSpacing;
 
   // Nominal shear capacity
   const nominalShear = concreteShearCapacity + steelShearCapacity;
