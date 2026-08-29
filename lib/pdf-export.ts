@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { CalculationResults, BeamInputs, DoubleCalculationResults, DoubleBeamInputs, CalculationMethod } from '@/types/beam';
-import { formatNumber, steelGradeData, getModularRatio, getBeta1, roundBarData, deformedBarData, STEEL_MODULUS } from '@/lib/calculations/common';
+import { formatNumber, getModularRatio, getBeta1, deformedBarData, STEEL_MODULUS, getStirrubBarArea } from '@/lib/calculations/common';
 
 interface EquationData {
   label: string;
@@ -93,15 +93,16 @@ export function exportSingleBeamPDF(
   let y = 20;
 
   const { section, wsd, sdm } = results;
-  const { concreteGrade, steelGrade, width, height, cover, layers, stirrupSize, stirrupSpacing } = inputs;
+  const { concreteGrade, steelGradeFy, steelGradeFv, width, height, cover, layers, stirrupSize, stirrupSpacing } = inputs;
 
-  const fy = steelGradeData[steelGrade].fy;
+  const fy = steelGradeFy;
+  const fv = steelGradeFv;
   const fc = concreteGrade;
   const n = getModularRatio(fc);
   const As = section.totalSteelArea;
   const d = section.effectiveDepth;
   const b = width;
-  const Av = 2 * roundBarData[stirrupSize].area;
+  const Av = 2 * getStirrubBarArea(stirrupSize);
   const beta1 = getBeta1(fc);
 
   // Title
@@ -128,11 +129,8 @@ export function exportSingleBeamPDF(
   const col3 = margin + 120;
 
   doc.text(`Concrete: f'c = ${fc} kg/cm^2`, col1, y);
-  doc.text(`Steel: ${steelGrade} (fy = ${fy} kg/cm^2)`, col2, y);
-  y += 6;
-  doc.text(`Width (b) = ${b} cm`, col1, y);
-  doc.text(`Height (h) = ${height} cm`, col2, y);
-  doc.text(`Cover = ${cover} cm`, col3, y);
+  doc.text(`Steel (Flexural): fy = ${fy} kg/cm^2`, col2, y);
+  doc.text(`Steel (Shear): fv = ${fv} kg/cm^2`, col3, y);
   y += 6;
   doc.text(`Stirrup: ${stirrupSize} @ ${stirrupSpacing} cm`, col1, y);
   y += 6;
@@ -444,9 +442,10 @@ export function exportDoubleBeamPDF(
   let y = 20;
 
   const { section, wsd, sdm } = results;
-  const { concreteGrade, steelGrade, width, height, cover, coverTop, tensionLayers, compressionLayers, stirrupSize, stirrupSpacing } = inputs;
+  const { concreteGrade, steelGradeFy, steelGradeFv, width, height, cover, coverTop, tensionLayers, compressionLayers, stirrupSize, stirrupSpacing } = inputs;
 
-  const fy = steelGradeData[steelGrade].fy;
+  const fy = steelGradeFy;
+  const fv = steelGradeFv;
   const fc = concreteGrade;
   const n = getModularRatio(fc);
   const As = section.tensionSteelArea;
@@ -454,7 +453,7 @@ export function exportDoubleBeamPDF(
   const d = section.effectiveDepth;
   const dPrime = section.effectiveDepthPrime;
   const b = width;
-  const Av = 2 * roundBarData[stirrupSize].area;
+  const Av = 2 * getStirrubBarArea(stirrupSize);
   const beta1 = getBeta1(fc);
 
   // Title
@@ -481,15 +480,8 @@ export function exportDoubleBeamPDF(
   const col3 = margin + 120;
 
   doc.text(`Concrete: f'c = ${fc} kg/cm^2`, col1, y);
-  doc.text(`Steel: ${steelGrade} (fy = ${fy} kg/cm^2)`, col2, y);
-  y += 6;
-  doc.text(`Width (b) = ${b} cm`, col1, y);
-  doc.text(`Height (h) = ${height} cm`, col2, y);
-  y += 6;
-  doc.text(`Cover (bot) = ${cover} cm`, col1, y);
-  doc.text(`Cover (top) = ${coverTop} cm`, col2, y);
-  doc.text(`Stirrup: ${stirrupSize} @ ${stirrupSpacing} cm`, col3, y);
-  y += 6;
+  doc.text(`Steel (Flexural): fy = ${fy} kg/cm^2`, col2, y);
+  doc.text(`Steel (Shear): fv = ${fv} kg/cm^2`, col3, y);
 
   // Tension reinforcement
   doc.text('Tension Reinforcement (Bottom):', col1, y);

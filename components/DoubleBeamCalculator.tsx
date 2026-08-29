@@ -5,9 +5,10 @@ import Link from 'next/link';
 import {
   DoubleBeamInputs,
   ConcreteGrade,
-  SteelGrade,
+  SteelGradeFy,
+  SteelGradeFv,
   ReinforcementLayer,
-  RoundBar,
+  StirrubSize,
   CalculationMethod,
   DoubleCalculationResults,
 } from '@/types/beam';
@@ -41,21 +42,23 @@ export function DoubleBeamCalculator() {
 
   // Input states
   const [concreteGrade, setConcreteGrade] = useState<ConcreteGrade>(240);
-  const [steelGrade, setSteelGrade] = useState<SteelGrade>('SD40');
+  const [steelGradeFy, setSteelGradeFy] = useState<SteelGradeFy>(4000);
+  const [steelGradeFv, setSteelGradeFv] = useState<SteelGradeFv>(4000);
   const [width, setWidth] = useState(30);
   const [height, setHeight] = useState(50);
   const [cover, setCover] = useState(4);
   const [coverTop, setCoverTop] = useState(4);
   const [tensionLayers, setTensionLayers] = useState<ReinforcementLayer[]>(defaultTensionLayers);
   const [compressionLayers, setCompressionLayers] = useState<ReinforcementLayer[]>(defaultCompressionLayers);
-  const [stirrupSize, setStirrupSize] = useState<RoundBar>('RB9');
+  const [stirrupSize, setStirrupSize] = useState<StirrubSize>('RB9');
   const [stirrupSpacing, setStirrupSpacing] = useState(20);
   const [method, setMethod] = useState<CalculationMethod>('SDM');
 
   // Create inputs object
   const inputs: DoubleBeamInputs = useMemo(() => ({
     concreteGrade,
-    steelGrade,
+    steelGradeFy,
+    steelGradeFv,
     width,
     height,
     cover,
@@ -64,7 +67,7 @@ export function DoubleBeamCalculator() {
     compressionLayers,
     stirrupSize,
     stirrupSpacing,
-  }), [concreteGrade, steelGrade, width, height, cover, coverTop, tensionLayers, compressionLayers, stirrupSize, stirrupSpacing]);
+  }), [concreteGrade, steelGradeFy, steelGradeFv, width, height, cover, coverTop, tensionLayers, compressionLayers, stirrupSize, stirrupSpacing]);
 
   // Calculate results
   const results = useMemo<DoubleCalculationResults | null>(() => {
@@ -140,9 +143,11 @@ export function DoubleBeamCalculator() {
               <div className="flex-1">
                 <MaterialInputs
                   concreteGrade={concreteGrade}
-                  steelGrade={steelGrade}
+                  steelGradeFy={steelGradeFy}
+                  steelGradeFv={steelGradeFv}
                   onConcreteGradeChange={setConcreteGrade}
-                  onSteelGradeChange={setSteelGrade}
+                  onSteelGradeFyChange={setSteelGradeFy}
+                  onSteelGradeFvChange={setSteelGradeFv}
                 />
               </div>
             </div>

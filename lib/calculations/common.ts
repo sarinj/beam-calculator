@@ -1,6 +1,7 @@
 import {
   DeformedBar,
   RoundBar,
+  StirrubSize,
   SteelGrade,
   ConcreteGrade,
   BarData,
@@ -28,11 +29,37 @@ export const roundBarData: Record<RoundBar, BarData> = {
   RB12: { diameter: 12, area: 1.131 },
 };
 
-// Steel grade data (fy in kg/cm²)
+// Get stirrup bar area (works for both round and deformed bars)
+export function getStirrubBarArea(stirrupSize: StirrubSize): number {
+  // Check if it's a round bar
+  if (stirrupSize in roundBarData) {
+    return roundBarData[stirrupSize as RoundBar].area;
+  }
+  // Otherwise it's a deformed bar
+  return deformedBarData[stirrupSize as DeformedBar].area;
+}
+
+// Get stirrup bar diameter (works for both round and deformed bars)
+export function getStirrubBarDiameter(stirrupSize: StirrubSize): number {
+  // Check if it's a round bar
+  if (stirrupSize in roundBarData) {
+    return roundBarData[stirrupSize as RoundBar].diameter;
+  }
+  // Otherwise it's a deformed bar
+  return deformedBarData[stirrupSize as DeformedBar].diameter;
+}
+
+// Steel grade data (fy and fv in kg/cm²)
 export const steelGradeData: Record<SteelGrade, SteelData> = {
-  SD30: { fy: 3000 },
-  SD40: { fy: 4000 },
-  SD50: { fy: 5000 },
+  // Legacy grades (SD-style)
+  SD30: { fy: 3000, fv: 3000 },
+  SD40: { fy: 4000, fv: 4000 },
+  SD50: { fy: 5000, fv: 5000 },
+  // New numeric grades for flexural (fy) and shear (fv)
+  2400: { fy: 2400, fv: 2400 },
+  3000: { fy: 3000, fv: 3000 },
+  4000: { fy: 4000, fv: 4000 },
+  5000: { fy: 5000, fv: 5000 },
 };
 
 // Concrete modulus of elasticity (kg/cm²)
@@ -98,12 +125,12 @@ export function calculateCentroidDepth(
 export function calculateEffectiveDepth(
   height: number,
   cover: number,
-  stirrupSize: RoundBar,
+  stirrupSize: StirrubSize,
   layers: ReinforcementLayer[]
 ): number {
   if (layers.length === 0) return height - cover;
 
-  const stirrupDiameter = roundBarData[stirrupSize].diameter / 10; // mm to cm
+  const stirrupDiameter = getStirrubBarDiameter(stirrupSize) / 10; // mm to cm
   const firstLayerBarDiameter = deformedBarData[layers[0].barSize].diameter / 10;
 
   // d = h - cover - stirrup_diameter - main_bar_diameter/2
@@ -113,7 +140,7 @@ export function calculateEffectiveDepth(
   }
 
   // For multiple layers, calculate centroid
-  const centroidFromTop = calculateCentroidDepth(layers, height, cover, roundBarData[stirrupSize].diameter);
+  const centroidFromTop = calculateCentroidDepth(layers, height, cover, getStirrubBarDiameter(stirrupSize));
   return height - (height - centroidFromTop);
 }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { ReinforcementLayer, DeformedBar, RoundBar } from "@/types/beam"
+import { ReinforcementLayer, DeformedBar, StirrubSize } from "@/types/beam"
 import { useLanguage } from "@/contexts/LanguageContext"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -21,10 +21,10 @@ const MAX_BARS_PER_LAYER = 8
 
 interface ReinforcementInputsProps {
   layers: ReinforcementLayer[]
-  stirrupSize: RoundBar
+  stirrupSize: StirrubSize
   stirrupSpacing: number
   onLayersChange: (layers: ReinforcementLayer[]) => void
-  onStirrupSizeChange: (size: RoundBar) => void
+  onStirrupSizeChange: (size: StirrubSize) => void
   onStirrupSpacingChange: (spacing: number) => void
 }
 
@@ -37,7 +37,7 @@ const deformedBars: DeformedBar[] = [
   "DB28",
   "DB32",
 ]
-const roundBars: RoundBar[] = ["RB6", "RB9", "RB12"]
+const stirrupSizes: StirrubSize[] = ["RB6", "RB9", "DB10", "DB12", "DB16", "DB20"]
 
 export function ReinforcementInputs({
   layers,
@@ -180,13 +180,13 @@ export function ReinforcementInputs({
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Select
               value={stirrupSize}
-              onValueChange={(v) => onStirrupSizeChange(v as RoundBar)}
+              onValueChange={(v) => onStirrupSizeChange(v as StirrubSize)}
             >
               <SelectTrigger className="w-24 h-9 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
-                {roundBars.map((bar) => (
+                {stirrupSizes.map((bar) => (
                   <SelectItem
                     key={bar}
                     value={bar}

@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { ReinforcementLayer, RoundBar } from '@/types/beam';
-import { deformedBarData, roundBarData } from '@/lib/calculations/common';
+import { ReinforcementLayer, StirrubSize } from '@/types/beam';
+import { deformedBarData, getStirrubBarDiameter } from '@/lib/calculations/common';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -13,7 +13,7 @@ interface DoubleBeamSectionProps {
   coverTop: number;
   tensionLayers: ReinforcementLayer[];
   compressionLayers: ReinforcementLayer[];
-  stirrupSize: RoundBar;
+  stirrupSize: StirrubSize;
   effectiveDepth?: number;
   effectiveDepthPrime?: number;
 }
@@ -50,7 +50,7 @@ export function DoubleBeamSection({
   const beamWidth = width * scale;
   const beamHeight = height * scale;
 
-  const stirrupDia = roundBarData[stirrupSize].diameter / 10;
+  const stirrupDia = getStirrubBarDiameter(stirrupSize) / 10;
   const stirrupThickness = stirrupDia * scale;
   const coverPx = cover * scale;
   const coverTopPx = coverTop * scale;

@@ -1,7 +1,7 @@
 'use client';
 
 import { DoubleCalculationResults, DoubleBeamInputs, CalculationMethod } from '@/types/beam';
-import { formatNumber, steelGradeData, getModularRatio, getBeta1, roundBarData, STEEL_MODULUS } from '@/lib/calculations/common';
+import { formatNumber, getModularRatio, getBeta1, roundBarData, STEEL_MODULUS, getStirrubBarArea } from '@/lib/calculations/common';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 interface DoubleCalculationStepsProps {
@@ -42,9 +42,10 @@ function SectionHeader({ title }: { title: string }) {
 export function DoubleCalculationSteps({ results, inputs, method }: DoubleCalculationStepsProps) {
   const { t } = useLanguage();
   const { section, wsd, sdm } = results;
-  const { concreteGrade, steelGrade, width, stirrupSize, stirrupSpacing } = inputs;
+  const { concreteGrade, steelGradeFy, steelGradeFv, width, stirrupSize, stirrupSpacing } = inputs;
 
-  const fy = steelGradeData[steelGrade].fy;
+  const fy = steelGradeFy;
+  const fv = steelGradeFv;
   const fc = concreteGrade;
   const n = getModularRatio(fc);
   const As = section.tensionSteelArea;
@@ -52,7 +53,7 @@ export function DoubleCalculationSteps({ results, inputs, method }: DoubleCalcul
   const d = section.effectiveDepth;
   const dPrime = section.effectiveDepthPrime;
   const b = width;
-  const Av = 2 * roundBarData[stirrupSize].area;
+  const Av = 2 * getStirrubBarArea(stirrupSize);
 
   if (method === 'WSD') {
     const nPrime = 2 * n - 1;
@@ -191,16 +192,16 @@ export function DoubleCalculationSteps({ results, inputs, method }: DoubleCalcul
 
         <Equation
           label="Stirrup Shear (Vs)"
-          formula="Vs = (Av × 0.5 × fy × d) / s"
-          substitution={`Vs = (${formatNumber(Av, 3)} × 0.5 × ${fy} × ${formatNumber(d, 2)}) / ${stirrupSpacing}`}
-          result={formatNumber((Av * 0.5 * fy * d) / stirrupSpacing, 0)}
+          formula="Vs = (Av × 0.5 × fv × d) / s"
+          substitution={`Vs = (${formatNumber(Av, 3)} × 0.5 × ${fv} × ${formatNumber(d, 2)}) / ${stirrupSpacing}`}
+          result={formatNumber((Av * 0.5 * fv * d) / stirrupSpacing, 0)}
           unit="kg"
         />
 
         <Equation
           label="Total Shear Capacity"
           formula="V = Vc + Vs"
-          substitution={`V = ${formatNumber(0.29 * Math.sqrt(fc) * b * d, 0)} + ${formatNumber((Av * 0.5 * fy * d) / stirrupSpacing, 0)}`}
+          substitution={`V = ${formatNumber(0.29 * Math.sqrt(fc) * b * d, 0)} + ${formatNumber((Av * 0.5 * fv * d) / stirrupSpacing, 0)}`}
           result={formatNumber(wsd.shearCapacity, 0)}
           unit="kg"
         />
@@ -374,16 +375,16 @@ export function DoubleCalculationSteps({ results, inputs, method }: DoubleCalcul
 
       <Equation
         label="Stirrup Shear (Vs)"
-        formula="Vs = (Av × fy × d) / s"
-        substitution={`Vs = (${formatNumber(Av, 3)} × ${fy} × ${formatNumber(d, 2)}) / ${stirrupSpacing}`}
-        result={formatNumber((Av * fy * d) / stirrupSpacing, 0)}
+        formula="Vs = (Av × fv × d) / s"
+        substitution={`Vs = (${formatNumber(Av, 3)} × ${fv} × ${formatNumber(d, 2)}) / ${stirrupSpacing}`}
+        result={formatNumber((Av * fv * d) / stirrupSpacing, 0)}
         unit="kg"
       />
 
       <Equation
         label="Nominal Shear (Vn)"
         formula="Vn = Vc + Vs"
-        substitution={`Vn = ${formatNumber(0.53 * Math.sqrt(fc) * b * d, 0)} + ${formatNumber((Av * fy * d) / stirrupSpacing, 0)}`}
+        substitution={`Vn = ${formatNumber(0.53 * Math.sqrt(fc) * b * d, 0)} + ${formatNumber((Av * fv * d) / stirrupSpacing, 0)}`}
         result={formatNumber(sdm.nominalShear, 0)}
         unit="kg"
       />

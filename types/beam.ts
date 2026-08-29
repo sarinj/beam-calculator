@@ -1,9 +1,15 @@
 // Steel bar types
 export type DeformedBar = 'DB10' | 'DB12' | 'DB16' | 'DB20' | 'DB25' | 'DB28' | 'DB32';
 export type RoundBar = 'RB6' | 'RB9' | 'RB12';
+// Stirrup size (round or deformed bars)
+export type StirrubSize = 'RB6' | 'RB9' | 'DB10' | 'DB12' | 'DB16' | 'DB20';
 
-// Steel grades
-export type SteelGrade = 'SD30' | 'SD40' | 'SD50';
+// Steel grades (fy in kg/cm²)
+export type SteelGradeFy = 2400 | 3000 | 4000 | 5000;
+// Steel grades for shear (fv in kg/cm²)
+export type SteelGradeFv = 2400 | 3000 | 4000 | 5000;
+// Legacy type for backward compatibility
+export type SteelGrade = 'SD30' | 'SD40' | 'SD50' | SteelGradeFy | SteelGradeFv;
 
 // Concrete grades (f'c in kg/cm²)
 export type ConcreteGrade = 180 | 210 | 240 | 280 | 320 | 350;
@@ -22,7 +28,8 @@ export interface ReinforcementLayer {
 export interface BeamInputs {
   // Material properties
   concreteGrade: ConcreteGrade;
-  steelGrade: SteelGrade;
+  steelGradeFy: SteelGradeFy; // Flexural steel grade
+  steelGradeFv: SteelGradeFv; // Shear steel grade
 
   // Section dimensions (cm)
   width: number;
@@ -31,7 +38,7 @@ export interface BeamInputs {
 
   // Reinforcement
   layers: ReinforcementLayer[];
-  stirrupSize: RoundBar;
+  stirrupSize: StirrubSize;
   stirrupSpacing: number;
 }
 
@@ -39,7 +46,8 @@ export interface BeamInputs {
 export interface DoubleBeamInputs {
   // Material properties
   concreteGrade: ConcreteGrade;
-  steelGrade: SteelGrade;
+  steelGradeFy: SteelGradeFy; // Flexural steel grade
+  steelGradeFv: SteelGradeFv; // Shear steel grade
 
   // Section dimensions (cm)
   width: number;
@@ -54,7 +62,7 @@ export interface DoubleBeamInputs {
   compressionLayers: ReinforcementLayer[];
 
   // Stirrups
-  stirrupSize: RoundBar;
+  stirrupSize: StirrubSize;
   stirrupSpacing: number;
 }
 
@@ -134,5 +142,6 @@ export interface BarData {
 
 // Steel grade data
 export interface SteelData {
-  fy: number;  // kg/cm²
+  fy: number;  // Flexural strength (kg/cm²)
+  fv: number;  // Shear strength (kg/cm²)
 }

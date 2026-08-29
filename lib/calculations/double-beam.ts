@@ -6,12 +6,12 @@ import {
 } from '@/types/beam';
 import {
   deformedBarData,
-  roundBarData,
-  steelGradeData,
   getModularRatio,
   getBeta1,
   calculateTotalSteelArea,
   STEEL_MODULUS,
+  getStirrubBarArea,
+  getStirrubBarDiameter,
 } from './common';
 
 // Calculate effective depth for compression steel (d')
@@ -20,7 +20,7 @@ export function calculateEffectiveDepthPrime(
   stirrupSize: string,
   compressionBarSize: string
 ): number {
-  const stirrupDia = roundBarData[stirrupSize as keyof typeof roundBarData].diameter / 10;
+  const stirrupDia = getStirrubBarDiameter(stirrupSize as any) / 10;
   const barDia = deformedBarData[compressionBarSize as keyof typeof deformedBarData].diameter / 10;
   return coverTop + stirrupDia + barDia / 2;
 }
@@ -31,7 +31,7 @@ export function calculateDoubleSectionProperties(inputs: DoubleBeamInputs): Doub
 
   // Tension steel (bottom)
   const tensionSteelArea = calculateTotalSteelArea(tensionLayers);
-  const stirrupDia = roundBarData[stirrupSize].diameter / 10;
+  const stirrupDia = getStirrubBarDiameter(stirrupSize) / 10;
 
   // Calculate effective depth for tension steel
   let effectiveDepth = height - cover;
@@ -68,11 +68,12 @@ export function calculateDoubleWSD(
   inputs: DoubleBeamInputs,
   sectionProps: DoubleSectionProperties
 ): DoubleWSDResults {
-  const { concreteGrade, steelGrade, width, stirrupSize, stirrupSpacing } = inputs;
+  const { concreteGrade, steelGradeFy, steelGradeFv, width, stirrupSize, stirrupSpacing } = inputs;
   const { effectiveDepth, effectiveDepthPrime, tensionSteelArea, compressionSteelArea } = sectionProps;
 
   const fc = concreteGrade;
-  const fy = steelGradeData[steelGrade].fy;
+  const fy = steelGradeFy;
+  const fv = steelGradeFv;
 
   // Allowable stresses
   const allowableConcreteStress = 0.45 * fc;
@@ -118,8 +119,8 @@ export function calculateDoubleWSD(
   // Shear capacity
   const allowableShearStress = 0.29 * Math.sqrt(fc);
   const concreteShearCapacity = allowableShearStress * width * effectiveDepth;
-  const stirrupArea = 2 * roundBarData[stirrupSize].area;
-  const stirrupShearCapacity = (stirrupArea * 0.5 * fy * effectiveDepth) / stirrupSpacing;
+  const stirrupArea = 2 * getStirrubBarArea(stirrupSize);
+  const stirrupShearCapacity = (stirrupArea * 0.5 * fv * effectiveDepth) / stirrupSpacing;
   const shearCapacity = concreteShearCapacity + stirrupShearCapacity;
 
   return {
@@ -139,11 +140,12 @@ export function calculateDoubleSDM(
   inputs: DoubleBeamInputs,
   sectionProps: DoubleSectionProperties
 ): DoubleSDMResults {
-  const { concreteGrade, steelGrade, width, stirrupSize, stirrupSpacing } = inputs;
+  const { concreteGrade, steelGradeFy, steelGradeFv, width, stirrupSize, stirrupSpacing } = inputs;
   const { effectiveDepth, effectiveDepthPrime, tensionSteelArea, compressionSteelArea } = sectionProps;
 
   const fc = concreteGrade;
-  const fy = steelGradeData[steelGrade].fy;
+  const fy = steelGradeFy;
+  const fv = steelGradeFv;
   const d = effectiveDepth;
   const dPrime = effectiveDepthPrime;
   const As = tensionSteelArea;
@@ -229,8 +231,8 @@ export function calculateDoubleSDM(
 
   // Shear capacity
   const concreteShearCapacity = 0.53 * Math.sqrt(fc) * width * effectiveDepth;
-  const stirrupArea = 2 * roundBarData[stirrupSize].area;
-  const steelShearCapacity = (stirrupArea * fy * effectiveDepth) / stirrupSpacing;
+  const stirrupArea = 2 * getStirrubBarArea(stirrupSize);
+  const steelShearCapacity = (stirrupArea * fv * effectiveDepth) / stirrupSpacing;
   const nominalShear = concreteShearCapacity + steelShearCapacity;
   const PHI_SHEAR = 0.85;
   const designShear = PHI_SHEAR * nominalShear;
